@@ -4,13 +4,25 @@ import java.util.Objects;
 
 public class Location {
     private String locationName;
+    private double xCoordinate;
+    private double yCoordinate;
 
-    public Location(String locationName) {
+    public Location(String locationName, double xCoordinate, double yCoordinate) {
         this.locationName = locationName;
+        this.xCoordinate = xCoordinate;
+        this.yCoordinate = yCoordinate;
     }
 
     public String getLocationName() {
         return locationName;
+    }
+
+    public double getXCoordinate() {
+        return xCoordinate;
+    }
+
+    public double getYCoordinate() {
+        return yCoordinate;
     }
 
     /*
@@ -21,14 +33,11 @@ public class Location {
         if (this == obj) {
             return true;
         }
-
         if (obj == null || this.getClass() != obj.getClass()) {
             return false;
         }
-
-        Location otherLocation = (Location) obj;
-
-        return Objects.equals(this.locationName, otherLocation.locationName);
+        Location other = (Location) obj;
+        return Objects.equals(this.locationName, other.locationName);
     }
 
     /*
@@ -38,5 +47,10 @@ public class Location {
     @Override
     public int hashCode() {
         return Objects.hash(this.locationName);
+    }
+
+    @Override
+    public String toString() {
+        return locationName + " (" + xCoordinate + ", " + yCoordinate + ")";
     }
 }
