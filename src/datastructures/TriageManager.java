@@ -1,6 +1,7 @@
 package datastructures;
 
 import java.util.*;
+import models.EmergencyCall;
 
 public class TriageManager {
     public TriageManager() {
