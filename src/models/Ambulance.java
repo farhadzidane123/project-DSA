@@ -70,12 +70,13 @@ public class Ambulance {
         this.currentLocation = currentLocation;
     }
 
-@Override
-public String toString() {
-    String info = "Ambulance ID: " + ambulanceId + " [" + status + "]";
-    if (currentCall != null) {
-        info += " | Serving: " + currentCall.getDescription() + " at " + currentCall.getLocation().getLocationName();
-    }
-    return info;
+    @Override
+    public String toString() {
+        String info = "Ambulance ID: " + ambulanceId + " [" + status + "]";
+        if (currentCall != null) {
+            info += " | Serving: " + currentCall.getDescription() + " at "
+                    + currentCall.getLocation().getLocationName();
+        }
+        return info;
     }
 }

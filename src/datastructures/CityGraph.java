@@ -2,6 +2,8 @@ package datastructures;
 
 import models.Location;
 import java.util.*;
+import models.EmergencyCall;
+import models.Location;
 
 public class CityGraph {
     public CityGraph() {

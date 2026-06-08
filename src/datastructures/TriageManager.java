@@ -1,5 +1,6 @@
 package datastructures;
 
+import java.util.*;
 import models.EmergencyCall;
 
 /*
