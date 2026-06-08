@@ -1,5 +1,6 @@
 package datastructures;
 
+import models.Location;
 import java.util.*;
 
 public class CityGraph {
