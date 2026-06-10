@@ -124,4 +124,9 @@ public class DispatchManager {
     public List<Ambulance> getFleet() {
         return fleet;
     }
+
+    // UI Integration Getter
+    public TriageManager getTriageSystem() {
+        return triageSystem;
+    }
 }
