@@ -11,6 +11,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -42,12 +43,16 @@ import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 
 public class DispatchMapUI extends JFrame {
     private static final int AMBULANCE_AVERAGE_SPEED_KMH = 80;
+    private static final String SIMULATED_BUSY_ISSUE = "Simulation: ambulance unavailable";
 
     private final CityGraph cityMap;
     private final DispatchManager dispatchManager;
@@ -56,6 +61,10 @@ public class DispatchMapUI extends JFrame {
     private final JLabel etaLabel;
     private final JLabel priorityLabel;
     private final JTextArea ambulanceListArea;
+    private final JTextArea historyArea;
+    private final List<DispatchRecord> dispatchHistory = new ArrayList<>();
+    private final Random random = new Random();
+    private boolean allBusySimulationEnabled;
 
     public DispatchMapUI(DispatchManager dispatchManager, CityGraph cityMap) {
         this.dispatchManager = dispatchManager;
@@ -65,10 +74,11 @@ public class DispatchMapUI extends JFrame {
         this.etaLabel = createReadout("ETA --");
         this.priorityLabel = createReadout("NO PRIORITY");
         this.ambulanceListArea = createListArea();
+        this.historyArea = createHistoryArea();
 
         setTitle("KL/Selangor Emergency Dispatch Map");
-        setSize(1180, 760);
-        setMinimumSize(new Dimension(980, 640));
+        setSize(1240, 760);
+        setMinimumSize(new Dimension(1060, 660));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         getContentPane().setBackground(new Color(11, 16, 20));
@@ -81,7 +91,7 @@ public class DispatchMapUI extends JFrame {
     private JPanel createControlPanel() {
         JPanel panel = new JPanel();
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setPreferredSize(new Dimension(290, 0));
+        panel.setPreferredSize(new Dimension(340, 0));
         panel.setBackground(new Color(15, 20, 24));
         panel.setBorder(BorderFactory.createEmptyBorder(18, 16, 18, 16));
 
@@ -96,7 +106,7 @@ public class DispatchMapUI extends JFrame {
         panel.add(subtitle);
         panel.add(Box.createRigidArea(new Dimension(0, 18)));
 
-        JTextField placeField = createField("Kolej Kediaman 10, Lingkaran Budi, Universiti Malaya, Kuala Lumpur");
+        JTextField placeField = createField("KLCC");
         placeField.setBorder(BorderFactory.createTitledBorder("Known place"));
         panel.add(placeField);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
@@ -121,6 +131,26 @@ public class DispatchMapUI extends JFrame {
         zoomControls.add(zoomOut, BorderLayout.WEST);
         zoomControls.add(zoomIn, BorderLayout.EAST);
         panel.add(zoomControls);
+        panel.add(Box.createRigidArea(new Dimension(0, 10)));
+
+        JCheckBox showWeightsBox = new JCheckBox("Show road distances");
+        showWeightsBox.setOpaque(false);
+        showWeightsBox.setForeground(new Color(214, 232, 218));
+        showWeightsBox.setFont(new Font("SansSerif", Font.BOLD, 12));
+        showWeightsBox.setFocusPainted(false);
+        showWeightsBox.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        showWeightsBox.addActionListener(e -> mapPanel.setShowRoadWeights(showWeightsBox.isSelected()));
+        panel.add(showWeightsBox);
+        panel.add(Box.createRigidArea(new Dimension(0, 8)));
+
+        JCheckBox allBusySimulationBox = new JCheckBox("Simulate all ambulances busy");
+        allBusySimulationBox.setOpaque(false);
+        allBusySimulationBox.setForeground(new Color(214, 232, 218));
+        allBusySimulationBox.setFont(new Font("SansSerif", Font.BOLD, 12));
+        allBusySimulationBox.setFocusPainted(false);
+        allBusySimulationBox.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        allBusySimulationBox.addActionListener(e -> setAllBusySimulation(allBusySimulationBox.isSelected()));
+        panel.add(allBusySimulationBox);
         panel.add(Box.createRigidArea(new Dimension(0, 18)));
 
         JLabel nearbyTitle = new JLabel("NEAREST AMBULANCES");
@@ -130,8 +160,8 @@ public class DispatchMapUI extends JFrame {
         panel.add(Box.createRigidArea(new Dimension(0, 6)));
 
         JScrollPane scrollPane = new JScrollPane(ambulanceListArea);
-        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
-        scrollPane.setPreferredSize(new Dimension(250, 170));
+        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
+        scrollPane.setPreferredSize(new Dimension(300, 140));
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(35, 47, 52)));
         panel.add(scrollPane);
         panel.add(Box.createRigidArea(new Dimension(0, 14)));
@@ -141,6 +171,19 @@ public class DispatchMapUI extends JFrame {
         panel.add(statusLabel);
         panel.add(Box.createRigidArea(new Dimension(0, 8)));
         panel.add(etaLabel);
+        panel.add(Box.createRigidArea(new Dimension(0, 16)));
+
+        JLabel historyTitle = new JLabel("DISPATCH HISTORY");
+        historyTitle.setForeground(new Color(236, 241, 237));
+        historyTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
+        panel.add(historyTitle);
+        panel.add(Box.createRigidArea(new Dimension(0, 6)));
+
+        JScrollPane historyScrollPane = new JScrollPane(historyArea);
+        historyScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 210));
+        historyScrollPane.setPreferredSize(new Dimension(300, 210));
+        historyScrollPane.setBorder(BorderFactory.createLineBorder(new Color(35, 47, 52)));
+        panel.add(historyScrollPane);
         panel.add(Box.createVerticalGlue());
 
         JLabel hint = new JLabel("<html>Mouse wheel zooms.<br>Drag the map to pan.</html>");
@@ -184,6 +227,18 @@ public class DispatchMapUI extends JFrame {
         return area;
     }
 
+    private JTextArea createHistoryArea() {
+        JTextArea area = new JTextArea("No completed dispatch yet.");
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setBackground(new Color(20, 27, 31));
+        area.setForeground(new Color(219, 232, 224));
+        area.setFont(new Font("Consolas", Font.PLAIN, 11));
+        area.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        return area;
+    }
+
     private JLabel createReadout(String text) {
         JLabel label = new JLabel(text, SwingConstants.LEFT);
         label.setOpaque(true);
@@ -210,7 +265,8 @@ public class DispatchMapUI extends JFrame {
 
         Location target = cityMap.getLocation(place);
         if (target == null) {
-            JOptionPane.showMessageDialog(this, "Unknown place. Please use one of the pre-defined KL/Selangor locations.");
+            JOptionPane.showMessageDialog(this,
+                    "Unknown place. Please use one of the pre-defined KL/Selangor locations.");
             statusLabel.setText("UNKNOWN PLACE");
             etaLabel.setText("ETA --");
             priorityLabel.setText("NO PRIORITY");
@@ -234,8 +290,14 @@ public class DispatchMapUI extends JFrame {
         if (choice == null) {
             if (call != null) {
                 dispatchManager.handleIncomingCall(call);
-                JOptionPane.showMessageDialog(this, "No ambulance is available now. Incident added to the triage queue.");
-                statusLabel.setText("QUEUED");
+                String queueName = call.getSeverity() == 3 ? "regular queue" : "priority queue";
+                JOptionPane.showMessageDialog(this,
+                        "No ambulance is available now. Incident added to the " + queueName + ".");
+                statusLabel.setText(call.getSeverity() == 3 ? "REGULAR QUEUE" : "PRIORITY QUEUE");
+                ambulanceListArea.setText("All ambulances are busy.\n"
+                        + "Call queued in " + queueName + ".\n\n"
+                        + "Medical issue: " + call.getDescription() + "\n"
+                        + "Destination: " + call.getLocation().getLocationName());
             } else {
                 JOptionPane.showMessageDialog(this, "No available ambulance can reach this location.");
                 statusLabel.setText("NO ROUTE");
@@ -252,8 +314,8 @@ public class DispatchMapUI extends JFrame {
             return;
         }
 
-        choice = choice.withHospitalRoute(hospitalRoute);
         EmergencyCall activeCall = call != null ? call : new EmergencyCall(3, target, "Unspecified emergency");
+        choice = choice.withHospitalRoute(hospitalRoute, activeCall.getDescription());
         choice.ambulance.dispatchTo(activeCall);
 
         int emergencyLaneEta = estimatedMinutes(choice.distanceKm + choice.hospitalDistanceKm);
@@ -281,6 +343,52 @@ public class DispatchMapUI extends JFrame {
             case 2 -> "SEVERITY 2: PRIORITY QUEUE";
             default -> "SEVERITY 3: STANDARD QUEUE";
         };
+    }
+
+    private void setAllBusySimulation(boolean enabled) {
+        allBusySimulationEnabled = enabled;
+        if (enabled) {
+            int simulatedCount = markAvailableAmbulancesBusy();
+            mapPanel.startBusySimulation();
+            statusLabel.setText("SIMULATION: ALL BUSY");
+            etaLabel.setText("NON-URGENT CALLS -> REGULAR QUEUE");
+            ambulanceListArea.setText("Simulation enabled.\n"
+                    + simulatedCount + " available ambulances are moving between hospitals and calls.\n\n"
+                    + "Enter a non-urgent issue, then press Find Nearest Ambulance.");
+        } else {
+            mapPanel.stopBusySimulation();
+            int releasedCount = releaseSimulatedBusyAmbulances();
+            statusLabel.setText("READY");
+            etaLabel.setText("ETA --");
+            ambulanceListArea.setText("Simulation disabled.\n"
+                    + releasedCount + " simulated ambulances returned to available status.");
+        }
+        mapPanel.repaint();
+    }
+
+    private int markAvailableAmbulancesBusy() {
+        int count = 0;
+        for (Ambulance ambulance : dispatchManager.getFleet()) {
+            if (ambulance.isAvailable()) {
+                EmergencyCall simulatedCall = new EmergencyCall(3, ambulance.getCurrentLocation(), SIMULATED_BUSY_ISSUE);
+                if (ambulance.dispatchTo(simulatedCall)) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    private int releaseSimulatedBusyAmbulances() {
+        int count = 0;
+        for (Ambulance ambulance : dispatchManager.getFleet()) {
+            EmergencyCall currentCall = ambulance.getCurrentCall();
+            if (currentCall != null && SIMULATED_BUSY_ISSUE.equals(currentCall.getDescription())) {
+                ambulance.completeCall();
+                count++;
+            }
+        }
+        return count;
     }
 
     private DispatchChoice findNearestAmbulance(Location target) {
@@ -383,6 +491,48 @@ public class DispatchMapUI extends JFrame {
         return String.format("%.1f", distanceKm);
     }
 
+    private void addDispatchHistory(DispatchChoice choice) {
+        double totalDistanceKm = choice.distanceKm + choice.hospitalDistanceKm;
+        DispatchRecord record = new DispatchRecord(
+                choice.ambulance.getAmbulanceId(),
+                choice.medicalIssue,
+                choice.target.getLocationName(),
+                choice.hospital.getLocationName(),
+                estimatedMinutes(totalDistanceKm),
+                totalDistanceKm);
+        dispatchHistory.add(0, record);
+        updateHistoryArea();
+    }
+
+    private void updateHistoryArea() {
+        if (dispatchHistory.isEmpty()) {
+            historyArea.setText("No completed dispatch yet.");
+            return;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < dispatchHistory.size(); i++) {
+            DispatchRecord record = dispatchHistory.get(i);
+            builder.append(i + 1)
+                    .append(". Ambulance: ")
+                    .append(record.ambulanceId)
+                    .append("\n   Medical Issue: ")
+                    .append(record.medicalIssue)
+                    .append("\n   Last Destination: ")
+                    .append(record.lastDestination)
+                    .append("\n   Arrived Hospital: ")
+                    .append(record.arrivedHospital)
+                    .append("\n   Time Taken: ")
+                    .append(record.minutesTaken)
+                    .append(" min")
+                    .append("\n   Distance Taken: ")
+                    .append(formatKm(record.distanceTakenKm))
+                    .append(" km\n\n");
+        }
+        historyArea.setText(builder.toString());
+        historyArea.setCaretPosition(0);
+    }
+
     private static final class DispatchChoice {
         private final Ambulance ambulance;
         private final Location target;
@@ -391,13 +541,14 @@ public class DispatchMapUI extends JFrame {
         private final Location hospital;
         private final List<Location> hospitalPath;
         private final double hospitalDistanceKm;
+        private final String medicalIssue;
 
         private DispatchChoice(Ambulance ambulance, Location target, List<Location> path, double distanceKm) {
-            this(ambulance, target, path, distanceKm, null, Collections.emptyList(), 0);
+            this(ambulance, target, path, distanceKm, null, Collections.emptyList(), 0, "Unspecified emergency");
         }
 
         private DispatchChoice(Ambulance ambulance, Location target, List<Location> path, double distanceKm,
-                Location hospital, List<Location> hospitalPath, double hospitalDistanceKm) {
+                Location hospital, List<Location> hospitalPath, double hospitalDistanceKm, String medicalIssue) {
             this.ambulance = ambulance;
             this.target = target;
             this.path = path;
@@ -405,11 +556,31 @@ public class DispatchMapUI extends JFrame {
             this.hospital = hospital;
             this.hospitalPath = hospitalPath;
             this.hospitalDistanceKm = hospitalDistanceKm;
+            this.medicalIssue = medicalIssue;
         }
 
-        private DispatchChoice withHospitalRoute(HospitalRoute hospitalRoute) {
+        private DispatchChoice withHospitalRoute(HospitalRoute hospitalRoute, String medicalIssue) {
             return new DispatchChoice(ambulance, target, path, distanceKm,
-                    hospitalRoute.hospital, hospitalRoute.path, hospitalRoute.distanceKm);
+                    hospitalRoute.hospital, hospitalRoute.path, hospitalRoute.distanceKm, medicalIssue);
+        }
+    }
+
+    private static final class DispatchRecord {
+        private final String ambulanceId;
+        private final String medicalIssue;
+        private final String lastDestination;
+        private final String arrivedHospital;
+        private final int minutesTaken;
+        private final double distanceTakenKm;
+
+        private DispatchRecord(String ambulanceId, String medicalIssue, String lastDestination,
+                String arrivedHospital, int minutesTaken, double distanceTakenKm) {
+            this.ambulanceId = ambulanceId;
+            this.medicalIssue = medicalIssue;
+            this.lastDestination = lastDestination;
+            this.arrivedHospital = arrivedHospital;
+            this.minutesTaken = minutesTaken;
+            this.distanceTakenKm = distanceTakenKm;
         }
     }
 
@@ -426,24 +597,92 @@ public class DispatchMapUI extends JFrame {
     }
 
     private class MapPanel extends JPanel {
-        private static final double SCALE = 76.0;
+        private static final double SCALE = 92.0;
         private static final int SCAN_TICKS = 78;
 
         private double zoomFactor = 1.0;
-        private double xOffset = 120;
-        private double yOffset = -55;
+        private double xOffset = 70;
+        private double yOffset = -320;
         private Point dragStartPoint;
         private Timer timer;
+        private Timer busySimulationTimer;
         private int scanTick;
         private Location target;
         private DispatchChoice activeChoice;
         private List<DispatchChoice> candidates = Collections.emptyList();
         private boolean transportingToHospital;
+        private boolean showRoadWeights;
         private double animX;
         private double animY;
         private int pathIndex;
         private double segmentProgress;
         private final Map<String, Point> ambulanceOffsets = new HashMap<>();
+        private final Map<Ambulance, BusySimulationRoute> busySimulationRoutes = new HashMap<>();
+
+        private class BusySimulationRoute {
+            private final Location hospital;
+            private final Location destination;
+            private final List<Location> path;
+            private boolean outbound = true;
+            private int routeIndex;
+            private double routeProgress;
+            private double currentX;
+            private double currentY;
+            private Location endpoint;
+
+            private BusySimulationRoute(Location hospital, Location destination, List<Location> path) {
+                this.hospital = hospital;
+                this.destination = destination;
+                this.path = path;
+                this.currentX = hospital.getXCoordinate();
+                this.currentY = hospital.getYCoordinate();
+                this.endpoint = hospital;
+            }
+
+            private void step() {
+                endpoint = null;
+                if (path.size() < 2) {
+                    currentX = hospital.getXCoordinate();
+                    currentY = hospital.getYCoordinate();
+                    endpoint = hospital;
+                    return;
+                }
+
+                Location start = segmentStart();
+                Location end = segmentEnd();
+                int segmentMinutes = Math.max(1, (int) Math.round(roadDistanceKm(start, end)));
+                routeProgress += Math.max(0.008, 0.11 / segmentMinutes);
+
+                if (routeProgress >= 1.0) {
+                    currentX = end.getXCoordinate();
+                    currentY = end.getYCoordinate();
+                    routeIndex++;
+                    routeProgress = 0;
+
+                    if (routeIndex >= path.size() - 1) {
+                        endpoint = outbound ? destination : hospital;
+                        outbound = !outbound;
+                        routeIndex = 0;
+                    }
+                    return;
+                }
+
+                currentX = start.getXCoordinate() + (end.getXCoordinate() - start.getXCoordinate()) * routeProgress;
+                currentY = start.getYCoordinate() + (end.getYCoordinate() - start.getYCoordinate()) * routeProgress;
+            }
+
+            private Location segmentStart() {
+                return outbound ? path.get(routeIndex) : path.get(path.size() - 1 - routeIndex);
+            }
+
+            private Location segmentEnd() {
+                return outbound ? path.get(routeIndex + 1) : path.get(path.size() - 2 - routeIndex);
+            }
+
+            private Location currentEndpoint() {
+                return endpoint;
+            }
+        }
 
         private MapPanel() {
             setBackground(new Color(11, 16, 20));
@@ -491,6 +730,136 @@ public class DispatchMapUI extends JFrame {
         private void setCandidates(List<DispatchChoice> candidates) {
             this.candidates = candidates;
             repaint();
+        }
+
+        private void setShowRoadWeights(boolean showRoadWeights) {
+            this.showRoadWeights = showRoadWeights;
+            repaint();
+        }
+
+        private void startBusySimulation() {
+            busySimulationRoutes.clear();
+            for (Ambulance ambulance : dispatchManager.getFleet()) {
+                EmergencyCall currentCall = ambulance.getCurrentCall();
+                if (currentCall != null && SIMULATED_BUSY_ISSUE.equals(currentCall.getDescription())) {
+                    BusySimulationRoute route = createBusySimulationRoute(ambulance);
+                    if (route != null) {
+                        busySimulationRoutes.put(ambulance, route);
+                    }
+                }
+            }
+
+            if (busySimulationTimer != null && busySimulationTimer.isRunning()) {
+                busySimulationTimer.stop();
+            }
+            busySimulationTimer = new Timer(16, e -> {
+                stepBusySimulation();
+                repaint();
+            });
+            busySimulationTimer.start();
+            repaint();
+        }
+
+        private void stopBusySimulation() {
+            if (busySimulationTimer != null) {
+                busySimulationTimer.stop();
+            }
+            for (Map.Entry<Ambulance, BusySimulationRoute> entry : busySimulationRoutes.entrySet()) {
+                entry.getKey().setCurrentLocation(entry.getValue().hospital);
+            }
+            busySimulationRoutes.clear();
+            repaint();
+        }
+
+        private BusySimulationRoute createBusySimulationRoute(Ambulance ambulance) {
+            Location hospital = nearestHospital(ambulance.getCurrentLocation());
+            Location destination = randomDestinationForHospital(ambulance, hospital);
+            if (hospital == null || destination == null) {
+                return null;
+            }
+
+            List<Location> path = cityMap.findShortestPath(hospital.getLocationName(), destination.getLocationName());
+            if (path.size() < 2) {
+                return null;
+            }
+            ambulance.setCurrentLocation(hospital);
+            return new BusySimulationRoute(hospital, destination, path);
+        }
+
+        private Location nearestHospital(Location from) {
+            Location bestHospital = null;
+            double bestDistance = Double.MAX_VALUE;
+            for (Location hospital : cityMap.getNodes().values()) {
+                if (!MalaysiaMapData.isHospital(hospital)) {
+                    continue;
+                }
+                if (from.equals(hospital)) {
+                    return hospital;
+                }
+                List<Location> path = cityMap.findShortestPath(from.getLocationName(), hospital.getLocationName());
+                if (path.isEmpty()) {
+                    continue;
+                }
+                double distance = routeDistanceKm(path);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestHospital = hospital;
+                }
+            }
+            return bestHospital;
+        }
+
+        private Location randomDestinationForHospital(Ambulance ambulance, Location hospital) {
+            List<Location> candidates = new ArrayList<>();
+            for (Location location : cityMap.getNodes().values()) {
+                if (MalaysiaMapData.isHospital(location) || location.equals(hospital)
+                        || isExcludedSimulationDestination(ambulance, location)) {
+                    continue;
+                }
+                if (hospital.equals(nearestHospital(location))) {
+                    candidates.add(location);
+                }
+            }
+            if (candidates.isEmpty()) {
+                return randomReachableDestination(ambulance, hospital);
+            }
+            return candidates.get(random.nextInt(candidates.size()));
+        }
+
+        private Location randomReachableDestination(Ambulance ambulance, Location hospital) {
+            List<Location> candidates = new ArrayList<>();
+            for (Location location : cityMap.getNodes().values()) {
+                if (MalaysiaMapData.isHospital(location) || location.equals(hospital)
+                        || isExcludedSimulationDestination(ambulance, location)) {
+                    continue;
+                }
+                if (!cityMap.findShortestPath(hospital.getLocationName(), location.getLocationName()).isEmpty()) {
+                    candidates.add(location);
+                }
+            }
+            if (candidates.isEmpty()) {
+                return null;
+            }
+            return candidates.get(random.nextInt(candidates.size()));
+        }
+
+        private boolean isExcludedSimulationDestination(Ambulance ambulance, Location location) {
+            if (!"AMB-07".equals(ambulance.getAmbulanceId())) {
+                return false;
+            }
+            String name = location.getLocationName();
+            return "Bukit Bintang".equals(name) || "Cheras".equals(name);
+        }
+
+        private void stepBusySimulation() {
+            for (Map.Entry<Ambulance, BusySimulationRoute> entry : busySimulationRoutes.entrySet()) {
+                BusySimulationRoute route = entry.getValue();
+                route.step();
+                Location endpoint = route.currentEndpoint();
+                if (endpoint != null) {
+                    entry.getKey().setCurrentLocation(endpoint);
+                }
+            }
         }
 
         private void scanAndDispatch(DispatchChoice choice) {
@@ -562,6 +931,7 @@ public class DispatchMapUI extends JFrame {
             }
             activeChoice.ambulance.setCurrentLocation(activeChoice.hospital);
             activeChoice.ambulance.completeCall();
+            addDispatchHistory(activeChoice);
             statusLabel.setText("AVAILABLE: " + activeChoice.ambulance.getAmbulanceId());
             etaLabel.setText("COMPLETED VIA " + activeChoice.hospital.getLocationName());
             activeChoice = null;
@@ -590,6 +960,9 @@ public class DispatchMapUI extends JFrame {
 
             drawMetroArea(g2);
             drawRoads(g2);
+            if (showRoadWeights) {
+                drawAllRoadWeights(g2);
+            }
             drawDijkstraRoutes(g2);
             drawLocations(g2);
             drawAmbulances(g2);
@@ -636,31 +1009,39 @@ public class DispatchMapUI extends JFrame {
         }
 
         private void drawRoads(Graphics2D g2) {
+            Set<String> drawnRoads = new HashSet<>();
+
             for (Map.Entry<Location, List<Road>> entry : cityMap.getAdjacencyList().entrySet()) {
                 Location from = entry.getKey();
                 for (Road road : entry.getValue()) {
                     Location to = road.getTo();
+                    String roadKey = roadKey(from, to);
+                    if (!drawnRoads.add(roadKey)) {
+                        continue;
+                    }
+
                     int traffic = road.getTravelTime();
                     if (traffic >= 12) {
                         g2.setColor(new Color(214, 82, 72, 145));
                     } else if (traffic >= 8) {
                         g2.setColor(new Color(235, 187, 72, 135));
                     } else {
-                        g2.setColor(new Color(218, 224, 216, 120));
+                        g2.setColor(new Color(46, 214, 130, 145));
                     }
-                    g2.setStroke(new BasicStroke(traffic >= 10 ? 2.5f : 1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    g2.setStroke(new BasicStroke(traffic >= 10 ? 2.5f : 1.6f, BasicStroke.CAP_ROUND,
+                            BasicStroke.JOIN_ROUND));
                     g2.drawLine((int) worldX(from), (int) worldY(from), (int) worldX(to), (int) worldY(to));
                 }
             }
+        }
 
-            g2.setColor(new Color(170, 181, 178, 40));
-            g2.setStroke(new BasicStroke(0.9f));
-            for (Location loc : cityMap.getNodes().values()) {
-                double x = worldX(loc);
-                double y = worldY(loc);
-                g2.drawLine((int) x - 18, (int) y + 12, (int) x + 22, (int) y - 14);
-                g2.drawLine((int) x - 14, (int) y - 16, (int) x + 18, (int) y + 18);
+        private String roadKey(Location from, Location to) {
+            String fromName = from.getLocationName();
+            String toName = to.getLocationName();
+            if (fromName.compareTo(toName) <= 0) {
+                return fromName + "|" + toName;
             }
+            return toName + "|" + fromName;
         }
 
         private void drawDijkstraRoutes(Graphics2D g2) {
@@ -674,10 +1055,14 @@ public class DispatchMapUI extends JFrame {
                 if (transportingToHospital) {
                     drawPath(g2, activeChoice.path, new Color(0, 245, 141, 90), 3.2f);
                     drawPath(g2, activeChoice.hospitalPath, new Color(31, 177, 255, 230), 5.2f);
-                    drawPathWeights(g2, activeChoice.hospitalPath);
+                    if (!showRoadWeights) {
+                        drawPathWeights(g2, activeChoice.hospitalPath);
+                    }
                 } else {
                     drawPath(g2, activeChoice.path, new Color(0, 245, 141, 230), 5.2f);
-                    drawPathWeights(g2, activeChoice.path);
+                    if (!showRoadWeights) {
+                        drawPathWeights(g2, activeChoice.path);
+                    }
                 }
             }
         }
@@ -699,15 +1084,44 @@ public class DispatchMapUI extends JFrame {
                 Location from = path.get(i);
                 Location to = path.get(i + 1);
                 String label = formatKm(roadDistanceKm(from, to)) + " km";
-                int x = (int) ((worldX(from) + worldX(to)) / 2);
-                int y = (int) ((worldY(from) + worldY(to)) / 2);
-                int width = metrics.stringWidth(label) + 8;
-
-                g2.setColor(new Color(5, 10, 12, 210));
-                g2.fillRoundRect(x - width / 2, y - 10, width, 16, 6, 6);
-                g2.setColor(new Color(235, 255, 244));
-                g2.drawString(label, x - width / 2 + 4, y + 2);
+                drawRoadWeightLabel(g2, metrics, from, to, label, 13);
             }
+        }
+
+        private void drawAllRoadWeights(Graphics2D g2) {
+            Set<String> drawnRoads = new HashSet<>();
+            g2.setFont(new Font("Consolas", Font.BOLD, 10));
+            FontMetrics metrics = g2.getFontMetrics();
+
+            for (Map.Entry<Location, List<Road>> entry : cityMap.getAdjacencyList().entrySet()) {
+                Location from = entry.getKey();
+                for (Road road : entry.getValue()) {
+                    Location to = road.getTo();
+                    if (!drawnRoads.add(roadKey(from, to))) {
+                        continue;
+                    }
+                    drawRoadWeightLabel(g2, metrics, from, to, formatKm(road.getTravelTime()) + " km", 15);
+                }
+            }
+        }
+
+        private void drawRoadWeightLabel(Graphics2D g2, FontMetrics metrics, Location from, Location to, String label,
+                int perpendicularOffset) {
+            int x = (int) ((worldX(from) + worldX(to)) / 2);
+            int y = (int) ((worldY(from) + worldY(to)) / 2);
+            int width = metrics.stringWidth(label) + 8;
+            double dx = worldX(to) - worldX(from);
+            double dy = worldY(to) - worldY(from);
+            double length = Math.max(1, Math.hypot(dx, dy));
+            int xShift = (int) Math.round((-dy / length) * perpendicularOffset);
+            int yShift = (int) Math.round((dx / length) * perpendicularOffset);
+            x += xShift;
+            y += yShift;
+
+            g2.setColor(new Color(5, 10, 12, 210));
+            g2.fillRoundRect(x - width / 2, y - 10, width, 16, 6, 6);
+            g2.setColor(new Color(235, 255, 244));
+            g2.drawString(label, x - width / 2 + 4, y + 2);
         }
 
         private void drawLocations(Graphics2D g2) {
@@ -723,9 +1137,13 @@ public class DispatchMapUI extends JFrame {
                 g2.fill(new Ellipse2D.Double(x - 5, y - 5, 10, 10));
                 g2.setColor(new Color(214, 226, 219));
                 g2.fill(new Ellipse2D.Double(x - 2.5, y - 2.5, 5, 5));
+                if (loc.equals(target)) {
+                    continue;
+                }
                 g2.setFont(new Font("SansSerif", Font.PLAIN, 10));
                 g2.setColor(new Color(229, 235, 231, 205));
-                g2.drawString(loc.getLocationName(), (float) x + 7, (float) y - 6);
+                Point labelOffset = labelOffset(loc.getLocationName());
+                g2.drawString(loc.getLocationName(), (float) x + labelOffset.x, (float) y + labelOffset.y);
             }
         }
 
@@ -739,7 +1157,8 @@ public class DispatchMapUI extends JFrame {
             g2.fillRect((int) x - 6, (int) y - 2, 12, 4);
             g2.setFont(new Font("SansSerif", Font.BOLD, 10));
             g2.setColor(new Color(210, 229, 255));
-            g2.drawString(name, (float) x + 12, (float) y - 8);
+            Point labelOffset = labelOffset(name);
+            g2.drawString(name, (float) x + labelOffset.x, (float) y + labelOffset.y);
         }
 
         private void drawAmbulances(Graphics2D g2) {
@@ -749,8 +1168,11 @@ public class DispatchMapUI extends JFrame {
                 }
                 Location loc = ambulance.getCurrentLocation();
                 Point offset = ambulanceOffsets.computeIfAbsent(ambulance.getAmbulanceId(), this::stableOffset);
-                double x = worldX(loc) + offset.x;
-                double y = worldY(loc) + offset.y;
+                BusySimulationRoute simulationRoute = busySimulationRoutes.get(ambulance);
+                double x = simulationRoute == null ? worldX(loc) : worldX(simulationRoute.currentX);
+                double y = simulationRoute == null ? worldY(loc) : worldY(simulationRoute.currentY);
+                x += offset.x;
+                y += offset.y;
                 boolean candidate = isCandidate(ambulance);
 
                 if (candidate && scanTick > 0 && scanTick < SCAN_TICKS) {
@@ -761,7 +1183,8 @@ public class DispatchMapUI extends JFrame {
                     g2.draw(new Ellipse2D.Double(x - radius, y - radius, radius * 2, radius * 2));
                 }
 
-                drawAmbulanceIcon(g2, x, y, candidate ? new Color(0, 230, 130) : new Color(211, 71, 74), ambulance.getAmbulanceId());
+                drawAmbulanceIcon(g2, x, y, candidate ? new Color(0, 230, 130) : new Color(211, 71, 74),
+                        ambulance.getAmbulanceId());
             }
         }
 
@@ -769,7 +1192,8 @@ public class DispatchMapUI extends JFrame {
             if (activeChoice == null || scanTick < SCAN_TICKS) {
                 return;
             }
-            drawAmbulanceIcon(g2, worldX(animX), worldY(animY), new Color(0, 255, 146), activeChoice.ambulance.getAmbulanceId());
+            drawAmbulanceIcon(g2, worldX(animX), worldY(animY), new Color(0, 255, 146),
+                    activeChoice.ambulance.getAmbulanceId());
         }
 
         private void drawAmbulanceIcon(Graphics2D g2, double x, double y, Color color, String id) {
@@ -800,7 +1224,42 @@ public class DispatchMapUI extends JFrame {
             g2.setColor(Color.WHITE);
             g2.fill(new Ellipse2D.Double(x - 4, y - 9, 8, 8));
             g2.setFont(new Font("SansSerif", Font.BOLD, 11));
-            g2.drawString(target.getLocationName(), (float) x + 14, (float) y + 3);
+            Point labelOffset = targetLabelOffset(target.getLocationName());
+            g2.drawString(target.getLocationName(), (float) x + labelOffset.x, (float) y + labelOffset.y);
+        }
+
+        private Point labelOffset(String name) {
+            return switch (name) {
+                case "Setia Alam" -> new Point(18, -18);
+                case "Shah Alam" -> new Point(18, 24);
+                case "Puchong" -> new Point(-72, 6);
+                case "Cyberjaya" -> new Point(18, 24);
+                case "Kajang" -> new Point(18, -18);
+                case "Cheras" -> new Point(18, 22);
+                case "Sri Petaling" -> new Point(18, -18);
+                case "Ampang" -> new Point(22, 4);
+                case "Bangsar" -> new Point(-58, -16);
+                case "Bangsar South" -> new Point(18, 24);
+                case "KL Sentral" -> new Point(30, -10);
+                case "Bukit Bintang" -> new Point(16, 18);
+                case "KLCC" -> new Point(28, -18);
+                case "Hospital Shah Alam" -> new Point(26, -18);
+                case "Hospital Cyberjaya" -> new Point(28, 24);
+                case "Hospital Kajang" -> new Point(28, -18);
+                case "Hospital Kuala Lumpur" -> new Point(36, -28);
+                case "Hospital Puchong" -> new Point(-108, 22);
+                case "Hospital Cheras" -> new Point(26, -18);
+                case "Ampang Hospital" -> new Point(28, 26);
+                default -> new Point(18, -16);
+            };
+        }
+
+        private Point targetLabelOffset(String name) {
+            return switch (name) {
+                case "Bangsar South" -> new Point(22, 24);
+                case "Puchong", "Cyberjaya", "Cheras" -> new Point(28, 28);
+                default -> new Point(28, 10);
+            };
         }
 
         private void drawHud(Graphics2D g2) {
