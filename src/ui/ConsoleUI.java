@@ -128,9 +128,9 @@ public class ConsoleUI {
         System.out.println("\n--- RUNNING RUBRIC SCENARIO ---");
 
         // Step 1: Use 3 pre-defined KL/Selangor locations
-        Location locationA = cityMap.getLocation("Kolej Kediaman 10, Lingkaran Budi, Universiti Malaya, Kuala Lumpur");
+        Location locationA = cityMap.getLocation("KLCC");
         Location locationB = cityMap.getLocation("Bangsar");
-        Location locationC = cityMap.getLocation("Semenyih");
+        Location locationC = cityMap.getLocation("Kajang");
 
         // Step 2: Register 2 ambulances
         Ambulance amb01 = new Ambulance("AMB-01", locationA);
