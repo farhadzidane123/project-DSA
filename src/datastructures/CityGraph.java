@@ -209,56 +209,12 @@ public class CityGraph {
         }
     }
 
-    /**
-     * Helper Method: Finds the nearest existing location in the graph based on
-     * Euclidean distance.
-     */
-    private Location findNearestNode(Location target) {
-        Location nearest = null;
-        double minDistance = Double.MAX_VALUE;
-
-        for (Location current : nodes.values()) {
-            // Euclidean distance formula: √((x2 - x1)² + (y2 - y1)²)
-            double distance = Math.sqrt(Math.pow(current.getXCoordinate() - target.getXCoordinate(), 2) +
-                    Math.pow(current.getYCoordinate() - target.getYCoordinate(), 2));
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearest = current;
-            }
-        }
-        return nearest;
+    // UI Integration Getters
+    public Map<String, Location> getNodes() {
+        return nodes;
     }
 
-    /**
-     * Adds a dynamic location and automatically connects it to the nearest existing
-     * node.
-     */
-    public void addDynamicLocationAndConnect(Location newLoc) {
-        // If the graph is entirely empty, just add the node
-        if (nodes.isEmpty()) {
-            addLocation(newLoc);
-            return;
-        }
-
-        // 1. Find the closest existing node
-        Location nearest = findNearestNode(newLoc);
-
-        // 2. Add the new location to the graph
-        addLocation(newLoc);
-
-        // 3. Calculate distance to determine the travel time
-        double distance = Math.sqrt(Math.pow(nearest.getXCoordinate() - newLoc.getXCoordinate(), 2) +
-                Math.pow(nearest.getYCoordinate() - newLoc.getYCoordinate(), 2));
-
-        // Convert distance to minutes (Example ratio: 1 coordinate unit = 5 minutes)
-        int estimatedTime = Math.max(1, (int) (distance * 5));
-
-        // 4. Create bidirectional roads connecting the new location to the grid
-        addEdge(newLoc.getLocationName(), nearest.getLocationName(), estimatedTime);
-        addEdge(nearest.getLocationName(), newLoc.getLocationName(), estimatedTime);
-
-        System.out.println("System: Connected new location '" + newLoc.getLocationName() +
-                "' to nearest node '" + nearest.getLocationName() +
-                "' (Est. travel time: " + estimatedTime + " mins).");
+    public Map<Location, List<Road>> getAdjacencyList() {
+        return adjacencyList;
     }
 }
