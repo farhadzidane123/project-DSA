@@ -38,7 +38,8 @@ public class ConsoleUI {
         boolean running = true;
         System.out.println("=== EMERGENCY MEDICAL DISPATCH SYSTEM ===");
 
-        // Pre-populate the system with locations and ambulances so it's not empty on boot
+        // Pre-populate the system with locations and ambulances so it's not empty on
+        // boot
         Location depot = new Location("Central Depot", 0.0, 0.0);
         Location hospitalA = new Location("Hospital A", 1.0, 2.0);
         Location hospitalB = new Location("Hospital B", 3.0, 4.0);
@@ -91,29 +92,45 @@ public class ConsoleUI {
     private void reportEmergency() {
         System.out.println("\n--- REPORT NEW EMERGENCY ---");
 
-        // Step 1: Get severity
         System.out.print("Enter Severity (1 = Critical, 2 = Medium, 3 = Low): ");
         int severity = scanner.nextInt();
         scanner.nextLine();
 
-        // Step 2: Get location details
         System.out.print("Enter Location Name: ");
         String locationName = scanner.nextLine();
 
-        System.out.print("Enter Location X Coordinate: ");
-        double x = scanner.nextDouble();
+        // Setup default coordinates (will be overridden if the location is new)
+        double x = 0.0;
+        double y = 0.0;
 
-        System.out.print("Enter Location Y Coordinate: ");
-        double y = scanner.nextDouble();
-        scanner.nextLine();
+        // Attempt to see if this location already exists via a dry run
+        // We temporarily create a dummy object just to check the name
+        Location resolvedLocation = dispatchManager.resolveEmergencyLocation(locationName, x, y);
 
-        // Step 3: Get description
+        // If the returned location has coordinates 0.0, 0.0 but we meant a new place,
+        // we should actually ask the user for coordinates. Let's make the logic
+        // slightly smarter:
+        if (resolvedLocation.getXCoordinate() == 0.0 && resolvedLocation.getYCoordinate() == 0.0
+                && !locationName.equalsIgnoreCase("Central Depot")) {
+            System.out.println("Unrecognized location. Please provide coordinates for GPS tracking.");
+            System.out.print("Enter Location X Coordinate: ");
+            x = scanner.nextDouble();
+
+            System.out.print("Enter Location Y Coordinate: ");
+            y = scanner.nextDouble();
+            scanner.nextLine();
+
+            // Re-resolve with the actual coordinates now that we know it's a new place
+            resolvedLocation = dispatchManager.resolveEmergencyLocation(locationName, x, y);
+        } else {
+            System.out.println("Recognized existing location. Coordinates retrieved automatically.");
+        }
+
         System.out.print("Enter Emergency Description: ");
         String description = scanner.nextLine();
 
-        // Step 4: Build objects and send to dispatch manager
-        Location location = new Location(locationName, x, y);
-        EmergencyCall call = new EmergencyCall(severity, location, description);
+        // Build object and send to dispatch manager
+        EmergencyCall call = new EmergencyCall(severity, resolvedLocation, description);
         dispatchManager.handleIncomingCall(call);
     }
 
@@ -147,9 +164,9 @@ public class ConsoleUI {
         dispatchManager.registerAmbulance(amb02);
 
         // Step 3: Create 3 emergency calls
-        EmergencyCall call1 = new EmergencyCall(1, locationA, "Heart Attack");       // Critical
+        EmergencyCall call1 = new EmergencyCall(1, locationA, "Heart Attack"); // Critical
         EmergencyCall call2 = new EmergencyCall(3, locationB, "Minor Car Accident"); // Low
-        EmergencyCall call3 = new EmergencyCall(2, locationC, "House Fire");         // Medium
+        EmergencyCall call3 = new EmergencyCall(2, locationC, "House Fire"); // Medium
 
         // Step 4: Fire all 3 calls in rapid succession
         // AMB-01 takes Call 1, AMB-02 takes Call 2, Call 3 goes into the queue
@@ -162,4 +179,5 @@ public class ConsoleUI {
         System.out.println("\n--- SIMULATING AMB-01 COMPLETING JOB ---");
         dispatchManager.finishAmbulanceJob("AMB-01");
     }
+
 }
