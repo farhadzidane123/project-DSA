@@ -120,4 +120,21 @@ public class DispatchManager {
         }
         return null;
     }
+
+    /**
+     * Checks if a location exists. If it does not, it asks the graph to create
+     * a dynamic connection using the nearest-neighbor algorithm.
+     */
+    public Location resolveEmergencyLocation(String name, double x, double y) {
+        Location existing = cityMap.getLocation(name);
+
+        if (existing != null) {
+            return existing; // Option A: Found existing predefined location
+        } else {
+            // Option B: Completely new location
+            Location newLoc = new Location(name, x, y);
+            cityMap.addDynamicLocationAndConnect(newLoc);
+            return newLoc;
+        }
+    }
 }
