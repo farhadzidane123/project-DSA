@@ -12,10 +12,12 @@ public class ConsoleUI {
 
     // --- CORE VARIABLES ---
     private DispatchManager dispatchManager;
+    private CityGraph cityMap;
     private Scanner scanner;
 
-    public ConsoleUI(DispatchManager dispatchManager) {
+    public ConsoleUI(DispatchManager dispatchManager, CityGraph cityMap) {
         this.dispatchManager = dispatchManager;
+        this.cityMap = cityMap;
         this.scanner = new Scanner(System.in);
     }
 
@@ -29,7 +31,7 @@ public class ConsoleUI {
         DispatchManager manager = new DispatchManager(cityMap, triageSystem);
 
         // 3. Start the User Interface
-        ConsoleUI ui = new ConsoleUI(manager);
+        ConsoleUI ui = new ConsoleUI(manager, cityMap);
         ui.start();
     }
 
@@ -38,19 +40,11 @@ public class ConsoleUI {
         boolean running = true;
         System.out.println("=== EMERGENCY MEDICAL DISPATCH SYSTEM ===");
 
-        // Pre-populate the system with locations and ambulances so it's not empty on
-        // boot
-        Location depot = new Location("Central Depot", 0.0, 0.0);
-        Location hospitalA = new Location("Hospital A", 1.0, 2.0);
-        Location hospitalB = new Location("Hospital B", 3.0, 4.0);
+        MalaysiaMapData.seed(cityMap, dispatchManager);
+        System.out.println("System ready. KL/Selangor road graph and ambulance fleet loaded.\n");
 
-        Ambulance amb01 = new Ambulance("AMB-01", depot);
-        Ambulance amb02 = new Ambulance("AMB-02", hospitalA);
-
-        dispatchManager.registerAmbulance(amb01);
-        dispatchManager.registerAmbulance(amb02);
-
-        System.out.println("System ready. 2 ambulances registered.\n");
+        DispatchMapUI gui = new DispatchMapUI(dispatchManager, cityMap);
+        gui.setVisible(true);
 
         while (running) {
             printMenu();
@@ -99,29 +93,10 @@ public class ConsoleUI {
         System.out.print("Enter Location Name: ");
         String locationName = scanner.nextLine();
 
-        // Setup default coordinates (will be overridden if the location is new)
-        double x = 0.0;
-        double y = 0.0;
-
-        // Attempt to see if this location already exists via a dry run
-        // We temporarily create a dummy object just to check the name
-        Location resolvedLocation = dispatchManager.resolveEmergencyLocation(locationName, x, y);
-
-        // If the returned location has coordinates 0.0, 0.0 but we meant a new place,
-        // we should actually ask the user for coordinates. Let's make the logic
-        // slightly smarter:
-        if (resolvedLocation.getXCoordinate() == 0.0 && resolvedLocation.getYCoordinate() == 0.0
-                && !locationName.equalsIgnoreCase("Central Depot")) {
-            System.out.println("Unrecognized location. Please provide coordinates for GPS tracking.");
-            System.out.print("Enter Location X Coordinate: ");
-            x = scanner.nextDouble();
-
-            System.out.print("Enter Location Y Coordinate: ");
-            y = scanner.nextDouble();
-            scanner.nextLine();
-
-            // Re-resolve with the actual coordinates now that we know it's a new place
-            resolvedLocation = dispatchManager.resolveEmergencyLocation(locationName, x, y);
+        Location resolvedLocation = cityMap.getLocation(locationName);
+        if (resolvedLocation == null) {
+            System.out.println("Unknown location. Please use one of the pre-defined KL/Selangor locations.");
+            return;
         } else {
             System.out.println("Recognized existing location. Coordinates retrieved automatically.");
         }
@@ -152,10 +127,10 @@ public class ConsoleUI {
     private void runRubricScenario() {
         System.out.println("\n--- RUNNING RUBRIC SCENARIO ---");
 
-        // Step 1: Create 3 locations
-        Location locationA = new Location("Location A", 1.0, 1.0);
-        Location locationB = new Location("Location B", 2.0, 3.0);
-        Location locationC = new Location("Location C", 4.0, 5.0);
+        // Step 1: Use 3 pre-defined KL/Selangor locations
+        Location locationA = cityMap.getLocation("Kolej Kediaman 10, Lingkaran Budi, Universiti Malaya, Kuala Lumpur");
+        Location locationB = cityMap.getLocation("Bangsar");
+        Location locationC = cityMap.getLocation("Semenyih");
 
         // Step 2: Register 2 ambulances
         Ambulance amb01 = new Ambulance("AMB-01", locationA);
