@@ -2,6 +2,8 @@ package datastructures;
 
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.List;
+import java.util.ArrayList;
 import models.EmergencyCall;
 
 /**
@@ -9,7 +11,7 @@ import models.EmergencyCall;
  * Used exclusively for non-urgent calls (Severity 3).
  */
 public class StandardEmergencyQueue {
-    
+
     private Queue<EmergencyCall> queue;
 
     public StandardEmergencyQueue() {
@@ -30,5 +32,9 @@ public class StandardEmergencyQueue {
 
     public int size() {
         return queue.size();
+    }
+
+    public List<EmergencyCall> getCalls() {
+        return new ArrayList<>(queue);
     }
 }

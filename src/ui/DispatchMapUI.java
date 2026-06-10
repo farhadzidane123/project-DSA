@@ -61,6 +61,7 @@ public class DispatchMapUI extends JFrame {
     private final JLabel etaLabel;
     private final JLabel priorityLabel;
     private final JTextArea ambulanceListArea;
+    private final JTextArea queueArea;
     private final JTextArea historyArea;
     private final List<DispatchRecord> dispatchHistory = new ArrayList<>();
     private final Random random = new Random();
@@ -74,6 +75,7 @@ public class DispatchMapUI extends JFrame {
         this.etaLabel = createReadout("ETA --");
         this.priorityLabel = createReadout("NO PRIORITY");
         this.ambulanceListArea = createListArea();
+        this.queueArea = createQueueArea();
         this.historyArea = createHistoryArea();
 
         setTitle("KL/Selangor Emergency Dispatch Map");
@@ -173,6 +175,19 @@ public class DispatchMapUI extends JFrame {
         panel.add(etaLabel);
         panel.add(Box.createRigidArea(new Dimension(0, 16)));
 
+        JLabel queueTitle = new JLabel("WAITING QUEUES");
+        queueTitle.setForeground(new Color(236, 241, 237));
+        queueTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
+        panel.add(queueTitle);
+        panel.add(Box.createRigidArea(new Dimension(0, 6)));
+
+        JScrollPane queueScrollPane = new JScrollPane(queueArea);
+        queueScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
+        queueScrollPane.setPreferredSize(new Dimension(300, 160));
+        queueScrollPane.setBorder(BorderFactory.createLineBorder(new Color(35, 47, 52)));
+        panel.add(queueScrollPane);
+        panel.add(Box.createRigidArea(new Dimension(0, 14)));
+
         JLabel historyTitle = new JLabel("DISPATCH HISTORY");
         historyTitle.setForeground(new Color(236, 241, 237));
         historyTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
@@ -223,6 +238,18 @@ public class DispatchMapUI extends JFrame {
         area.setBackground(new Color(20, 27, 31));
         area.setForeground(new Color(219, 232, 224));
         area.setFont(new Font("Consolas", Font.PLAIN, 12));
+        area.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        return area;
+    }
+
+    private JTextArea createQueueArea() {
+        JTextArea area = new JTextArea("No calls in queue.");
+        area.setEditable(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setBackground(new Color(20, 27, 31));
+        area.setForeground(new Color(219, 232, 224));
+        area.setFont(new Font("Consolas", Font.PLAIN, 11));
         area.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         return area;
     }
@@ -298,6 +325,7 @@ public class DispatchMapUI extends JFrame {
                         + "Call queued in " + queueName + ".\n\n"
                         + "Medical issue: " + call.getDescription() + "\n"
                         + "Destination: " + call.getLocation().getLocationName());
+                updateQueueArea();
             } else {
                 JOptionPane.showMessageDialog(this, "No available ambulance can reach this location.");
                 statusLabel.setText("NO ROUTE");
@@ -461,6 +489,7 @@ public class DispatchMapUI extends JFrame {
         if (anyAvailable) {
             EmergencyCall nextCall = dispatchManager.getTriageSystem().getNextHighestPriorityCall();
             if (nextCall != null) {
+                updateQueueArea();
                 dispatchQueuedCall(nextCall);
             }
         }
@@ -475,6 +504,7 @@ public class DispatchMapUI extends JFrame {
         DispatchChoice choice = findNearestAmbulance(target);
         if (choice == null) {
             dispatchManager.getTriageSystem().addCallToQueue(call);
+            updateQueueArea();
             return;
         }
 
@@ -484,6 +514,7 @@ public class DispatchMapUI extends JFrame {
             statusLabel.setText("NO HOSPITAL ROUTE");
             etaLabel.setText("ETA --");
             dispatchManager.getTriageSystem().addCallToQueue(call);
+            updateQueueArea();
             return;
         }
 
@@ -543,6 +574,43 @@ public class DispatchMapUI extends JFrame {
 
     private String formatKm(double distanceKm) {
         return String.format("%.1f", distanceKm);
+    }
+
+    private void updateQueueArea() {
+        List<EmergencyCall> priority = dispatchManager.getTriageSystem().getPriorityQueueCalls();
+        List<EmergencyCall> standard = dispatchManager.getTriageSystem().getStandardQueueCalls();
+
+        if (priority.isEmpty() && standard.isEmpty()) {
+            queueArea.setText("No calls in queue.");
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        if (!priority.isEmpty()) {
+            sb.append("--- PRIORITY QUEUE ---\n");
+            for (int i = 0; i < priority.size(); i++) {
+                EmergencyCall call = priority.get(i);
+                sb.append(i + 1).append(". ")
+                        .append(call.getLocation().getLocationName())
+                        .append(" - ").append(call.getDescription())
+                        .append(" (P").append(call.getSeverity()).append(")\n");
+            }
+            if (!standard.isEmpty()) {
+                sb.append("\n");
+            }
+        }
+        if (!standard.isEmpty()) {
+            sb.append("--- STANDARD QUEUE ---\n");
+            for (int i = 0; i < standard.size(); i++) {
+                EmergencyCall call = standard.get(i);
+                sb.append(i + 1).append(". ")
+                        .append(call.getLocation().getLocationName())
+                        .append(" - ").append(call.getDescription())
+                        .append(" (P").append(call.getSeverity()).append(")\n");
+            }
+        }
+        queueArea.setText(sb.toString());
+        queueArea.setCaretPosition(0);
     }
 
     private void addDispatchHistory(DispatchChoice choice) {

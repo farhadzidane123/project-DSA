@@ -57,4 +57,12 @@ public class TriageManager {
     public boolean hasWaitingCalls() {
         return !priorityQueue.isEmpty() || !standardQueue.isEmpty();
     }
+
+    public List<EmergencyCall> getPriorityQueueCalls() {
+        return priorityQueue.getCalls();
+    }
+
+    public List<EmergencyCall> getStandardQueueCalls() {
+        return standardQueue.getCalls();
+    }
 }

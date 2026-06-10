@@ -1,6 +1,9 @@
 package datastructures;
 
 import java.util.PriorityQueue;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 import models.EmergencyCall;
 
 /**
@@ -8,11 +11,12 @@ import models.EmergencyCall;
  * Used exclusively for high-priority calls (Severity 1 and 2).
  */
 public class EmergencyPriorityQueue {
-    
+
     private PriorityQueue<EmergencyCall> heap;
 
     public EmergencyPriorityQueue() {
-        // The PriorityQueue will automatically use the compareTo method in EmergencyCall
+        // The PriorityQueue will automatically use the compareTo method in
+        // EmergencyCall
         this.heap = new PriorityQueue<>();
     }
 
@@ -30,5 +34,11 @@ public class EmergencyPriorityQueue {
 
     public int size() {
         return heap.size();
+    }
+
+    public List<EmergencyCall> getCalls() {
+        List<EmergencyCall> list = new ArrayList<>(heap);
+        Collections.sort(list);
+        return list;
     }
 }
