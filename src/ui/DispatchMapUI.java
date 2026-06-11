@@ -44,7 +44,6 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
@@ -318,51 +317,12 @@ public class DispatchMapUI extends JFrame {
         mapPanel.focusOnLocation(target, 1.75);
         mapPanel.setTarget(target);
 
-        EmergencyCall call = null;
-        if (incidentOption != null) {
-            call = new EmergencyCall(incidentOption.severity, target, incidentOption.name);
-            priorityLabel.setText(priorityText(incidentOption.severity));
-        } else {
-            priorityLabel.setText("NO INCIDENT: NO QUEUE PRIORITY");
-        }
+        EmergencyCall call = incidentOption != null
+                ? new EmergencyCall(incidentOption.severity, target, incidentOption.name)
+                : new EmergencyCall(3, target, "Unspecified emergency");
+        priorityLabel.setText(priorityText(call.getSeverity()));
 
-        DispatchChoice choice = findNearestAmbulance(target);
-        if (choice == null) {
-            if (call != null) {
-                dispatchManager.handleIncomingCall(call);
-                String queueName = call.getSeverity() == 3 ? "regular queue" : "priority queue";
-                JOptionPane.showMessageDialog(this,
-                        "No ambulance is available now. Incident added to the " + queueName + ".");
-                statusLabel.setText(call.getSeverity() == 3 ? "REGULAR QUEUE" : "PRIORITY QUEUE");
-                ambulanceListArea.setText("All ambulances are busy.\n"
-                        + "Call queued in " + queueName + ".\n\n"
-                        + "Medical issue: " + call.getDescription() + "\n"
-                        + "Destination: " + call.getLocation().getLocationName());
-                updateQueueArea();
-            } else {
-                JOptionPane.showMessageDialog(this, "No available ambulance can reach this location.");
-                statusLabel.setText("NO ROUTE");
-            }
-            etaLabel.setText("ETA --");
-            return;
-        }
-
-        HospitalRoute hospitalRoute = findNearestHospitalRoute(target);
-        if (hospitalRoute == null) {
-            JOptionPane.showMessageDialog(this, "No hospital route is available from this emergency location.");
-            statusLabel.setText("NO HOSPITAL ROUTE");
-            etaLabel.setText("ETA --");
-            return;
-        }
-
-        EmergencyCall activeCall = call != null ? call : new EmergencyCall(3, target, "Unspecified emergency");
-        choice = choice.withHospitalRoute(hospitalRoute, activeCall.getDescription());
-        choice.ambulance.dispatchTo(activeCall);
-
-        int emergencyLaneEta = estimatedMinutes(choice.distanceKm + choice.hospitalDistanceKm);
-        statusLabel.setText("SCANNING KNOWN AREA");
-        etaLabel.setText("BEST " + choice.ambulance.getAmbulanceId() + " | TOTAL " + emergencyLaneEta + " min");
-        mapPanel.scanAndDispatch(choice);
+        handleDispatchResult(dispatchManager.handleIncomingCall(call), "SCANNING KNOWN AREA");
     }
 
     private String priorityText(int severity) {
@@ -391,7 +351,7 @@ public class DispatchMapUI extends JFrame {
             ambulanceListArea.setText("Simulation disabled.\n"
                     + releasedCount + " simulated ambulances returned to available status.");
 
-            checkAndDispatchNextQueuedCall();
+            handleDispatchResult(dispatchManager.dispatchNextWaitingCall(), "DISPATCHING FROM QUEUE");
         }
         mapPanel.repaint();
     }
@@ -422,33 +382,6 @@ public class DispatchMapUI extends JFrame {
         return count;
     }
 
-    private DispatchChoice findNearestAmbulance(Location target) {
-        DispatchChoice best = null;
-        List<DispatchChoice> candidates = new ArrayList<>();
-
-        for (Ambulance amb : dispatchManager.getFleet()) {
-            if (!amb.isAvailable()) {
-                continue;
-            }
-
-            int eta = cityMap.calculateEta(amb.getCurrentLocation(), target);
-            List<Location> path = cityMap.findShortestPath(
-                    amb.getCurrentLocation().getLocationName(),
-                    target.getLocationName());
-
-            if (eta != Integer.MAX_VALUE && !path.isEmpty()) {
-                DispatchChoice choice = new DispatchChoice(amb, target, path, routeDistanceKm(path));
-                candidates.add(choice);
-            }
-        }
-
-        candidates.sort(Comparator.comparingDouble(candidate -> candidate.distanceKm));
-        best = candidates.isEmpty() ? null : candidates.get(0);
-        mapPanel.setCandidates(candidates);
-        updateAmbulanceList(candidates);
-        return best;
-    }
-
     private HospitalRoute findNearestHospitalRoute(Location emergencyLocation) {
         HospitalRoute best = null;
 
@@ -473,58 +406,91 @@ public class DispatchMapUI extends JFrame {
         return best;
     }
 
-    private void checkAndDispatchNextQueuedCall() {
-        if (!dispatchManager.getTriageSystem().hasWaitingCalls()) {
+    private void handleDispatchResult(DispatchManager.DispatchResult result, String assignedStatus) {
+        if (result == null) {
             return;
         }
 
-        boolean anyAvailable = false;
-        for (Ambulance amb : dispatchManager.getFleet()) {
-            if (amb.isAvailable()) {
-                anyAvailable = true;
-                break;
+        switch (result.getStatus()) {
+            case ASSIGNED -> animateAssignedDispatch(result, assignedStatus);
+            case QUEUED -> showQueuedCall(result.getCall());
+            case NO_ROUTE -> {
+                JOptionPane.showMessageDialog(this, "No available ambulance can reach this location.");
+                statusLabel.setText("NO ROUTE");
+                etaLabel.setText("ETA --");
+                mapPanel.setCandidates(Collections.emptyList());
+                ambulanceListArea.setText("No available ambulance can reach this place.");
             }
-        }
-
-        if (anyAvailable) {
-            EmergencyCall nextCall = dispatchManager.getTriageSystem().getNextHighestPriorityCall();
-            if (nextCall != null) {
+            case COMPLETED_NO_WAITING_CALL -> {
+                statusLabel.setText("AVAILABLE: " + result.getAmbulanceId());
+                etaLabel.setText("NO WAITING CALLS");
+            }
+            case NO_WAITING_CALL -> {
                 updateQueueArea();
-                dispatchQueuedCall(nextCall);
+            }
+            case NO_AVAILABLE_AMBULANCE -> {
+                statusLabel.setText("ALL AMBULANCES BUSY");
+                etaLabel.setText("ETA --");
+            }
+            case AMBULANCE_NOT_FOUND -> {
+                statusLabel.setText("AMBULANCE NOT FOUND");
+                etaLabel.setText("ETA --");
             }
         }
     }
 
-    private void dispatchQueuedCall(EmergencyCall call) {
+    private void animateAssignedDispatch(DispatchManager.DispatchResult result, String assignedStatus) {
+        DispatchChoice choice = toDispatchChoice(result.getAssignedCandidate());
+        List<DispatchChoice> candidates = toDispatchChoices(result.getCandidates());
+        mapPanel.setCandidates(candidates);
+        updateAmbulanceList(candidates);
+
+        EmergencyCall call = result.getCall();
         Location target = call.getLocation();
         mapPanel.focusOnLocation(target, 1.75);
         mapPanel.setTarget(target);
-        priorityLabel.setText(priorityText(call.getSeverity()) + " (PULLED FROM QUEUE)");
-
-        DispatchChoice choice = findNearestAmbulance(target);
-        if (choice == null) {
-            dispatchManager.getTriageSystem().addCallToQueue(call);
-            updateQueueArea();
-            return;
-        }
+        priorityLabel.setText(priorityText(call.getSeverity())
+                + (result.isPulledFromQueue() ? " (PULLED FROM QUEUE)" : ""));
 
         HospitalRoute hospitalRoute = findNearestHospitalRoute(target);
         if (hospitalRoute == null) {
             JOptionPane.showMessageDialog(this, "No hospital route is available from this emergency location.");
             statusLabel.setText("NO HOSPITAL ROUTE");
             etaLabel.setText("ETA --");
-            dispatchManager.getTriageSystem().addCallToQueue(call);
-            updateQueueArea();
             return;
         }
 
         choice = choice.withHospitalRoute(hospitalRoute, call.getDescription());
-        choice.ambulance.dispatchTo(call);
-
         int emergencyLaneEta = estimatedMinutes(choice.distanceKm + choice.hospitalDistanceKm);
-        statusLabel.setText("DISPATCHING FROM QUEUE");
+        statusLabel.setText(assignedStatus);
         etaLabel.setText("BEST " + choice.ambulance.getAmbulanceId() + " | TOTAL " + emergencyLaneEta + " min");
         mapPanel.scanAndDispatch(choice);
+    }
+
+    private void showQueuedCall(EmergencyCall call) {
+        String queueName = call.getSeverity() == 3 ? "regular queue" : "priority queue";
+        JOptionPane.showMessageDialog(this,
+                "No ambulance is available now. Incident added to the " + queueName + ".");
+        statusLabel.setText(call.getSeverity() == 3 ? "REGULAR QUEUE" : "PRIORITY QUEUE");
+        etaLabel.setText("ETA --");
+        ambulanceListArea.setText("All ambulances are busy.\n"
+                + "Call queued in " + queueName + ".\n\n"
+                + "Medical issue: " + call.getDescription() + "\n"
+                + "Destination: " + call.getLocation().getLocationName());
+        updateQueueArea();
+    }
+
+    private DispatchChoice toDispatchChoice(DispatchManager.DispatchCandidate candidate) {
+        return new DispatchChoice(candidate.getAmbulance(), candidate.getTarget(),
+                candidate.getPath(), candidate.getDistanceKm());
+    }
+
+    private List<DispatchChoice> toDispatchChoices(List<DispatchManager.DispatchCandidate> candidates) {
+        List<DispatchChoice> choices = new ArrayList<>();
+        for (DispatchManager.DispatchCandidate candidate : candidates) {
+            choices.add(toDispatchChoice(candidate));
+        }
+        return choices;
     }
 
     private void updateAmbulanceList(List<DispatchChoice> candidates) {
@@ -544,7 +510,7 @@ public class DispatchMapUI extends JFrame {
                     .append(" km, ETA ")
                     .append(estimatedMinutes(choice.distanceKm))
                     .append(" min\n   from ")
-                    .append(choice.ambulance.getCurrentLocation().getLocationName())
+                    .append(choice.path.get(0).getLocationName())
                     .append('\n');
         }
         ambulanceListArea.setText(builder.toString());
@@ -1066,17 +1032,18 @@ public class DispatchMapUI extends JFrame {
             if (timer != null) {
                 timer.stop();
             }
-            activeChoice.ambulance.setCurrentLocation(activeChoice.hospital);
-            activeChoice.ambulance.completeCall();
+            String ambulanceId = activeChoice.ambulance.getAmbulanceId();
             addDispatchHistory(activeChoice);
-            statusLabel.setText("AVAILABLE: " + activeChoice.ambulance.getAmbulanceId());
+            DispatchManager.DispatchResult nextResult = dispatchManager.finishAmbulanceJob(ambulanceId,
+                    activeChoice.hospital);
+            statusLabel.setText("AVAILABLE: " + ambulanceId);
             etaLabel.setText("COMPLETED VIA " + activeChoice.hospital.getLocationName());
             activeChoice = null;
             transportingToHospital = false;
             ambulanceListArea.setText("Mission complete. Press Find Nearest Ambulance for the next call.");
             repaint();
 
-            checkAndDispatchNextQueuedCall();
+            handleDispatchResult(nextResult, "DISPATCHING FROM QUEUE");
         }
 
         private List<Location> getActivePath() {

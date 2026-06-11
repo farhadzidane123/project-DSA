@@ -132,22 +132,28 @@ public class ConsoleUI {
         Location locationB = cityMap.getLocation("Bangsar");
         Location locationC = cityMap.getLocation("Kajang");
 
-        // Step 2: Register 2 ambulances
-        Ambulance amb01 = new Ambulance("AMB-01", locationA);
-        Ambulance amb02 = new Ambulance("AMB-02", locationB);
-        dispatchManager.registerAmbulance(amb01);
-        dispatchManager.registerAmbulance(amb02);
+        // Step 2: Keep only AMB-01 available so multiple calls must wait in queues
+        for (Ambulance ambulance : dispatchManager.getFleet()) {
+            if ("AMB-01".equalsIgnoreCase(ambulance.getAmbulanceId())) {
+                ambulance.setAvailable();
+                ambulance.setCurrentLocation(locationA);
+            } else if (ambulance.isAvailable()) {
+                EmergencyCall demoBusyCall = new EmergencyCall(3, ambulance.getCurrentLocation(),
+                        "Demo: ambulance unavailable");
+                ambulance.dispatchTo(demoBusyCall);
+            }
+        }
 
         // Step 3: Create 3 emergency calls
         EmergencyCall call1 = new EmergencyCall(1, locationA, "Heart Attack"); // Critical
         EmergencyCall call2 = new EmergencyCall(3, locationB, "Minor Car Accident"); // Low
-        EmergencyCall call3 = new EmergencyCall(2, locationC, "House Fire"); // Medium
+        EmergencyCall call3 = new EmergencyCall(2, locationC, "House Fire with Burns"); // Medium
 
         // Step 4: Fire all 3 calls in rapid succession
-        // AMB-01 takes Call 1, AMB-02 takes Call 2, Call 3 goes into the queue
+        // AMB-01 takes Call 1, Call 2 goes to regular queue, Call 3 goes to priority queue
         dispatchManager.handleIncomingCall(call1);
-        dispatchManager.handleIncomingCall(call2);
-        dispatchManager.handleIncomingCall(call3); // <-- This one gets queued
+        dispatchManager.handleIncomingCall(call2); // <-- Regular queue
+        dispatchManager.handleIncomingCall(call3); // <-- Priority queue
 
         // Step 5: Simulate AMB-01 finishing — system should pull House Fire (Sev 2)
         // from queue BEFORE the Car Accident (Sev 3), proving priority queue works
