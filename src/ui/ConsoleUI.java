@@ -21,7 +21,7 @@ public class ConsoleUI {
         this.scanner = new Scanner(System.in);
     }
 
-    // --- MAIN METHOD (The entry point of the program) ---
+    // --- MAIN METHOD ---
     public static void main(String[] args) {
         // 1. Boot up the core Data Structures
         CityGraph cityMap = new CityGraph();
@@ -49,7 +49,7 @@ public class ConsoleUI {
         while (running) {
             printMenu();
             int choice = scanner.nextInt();
-            scanner.nextLine(); // Consume the newline character left over by nextInt()
+            scanner.nextLine();
 
             switch (choice) {
                 case 1:
@@ -59,7 +59,7 @@ public class ConsoleUI {
                     resolveEmergency();
                     break;
                 case 3:
-                    runRubricScenario(); // Crucial for the video demo!
+                    runRubricScenario();
                     break;
                 case 4:
                     running = false;

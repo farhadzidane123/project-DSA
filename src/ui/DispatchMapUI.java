@@ -12,6 +12,8 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -53,6 +55,11 @@ import java.util.Set;
 public class DispatchMapUI extends JFrame {
     private static final int AMBULANCE_AVERAGE_SPEED_KMH = 80;
     private static final String SIMULATED_BUSY_ISSUE = "Simulation: ambulance unavailable";
+    private static final IncidentOption[] INCIDENT_OPTIONS = {
+            new IncidentOption("Heart Attack", 1),
+            new IncidentOption("House Fire with Burns", 2),
+            new IncidentOption("Minor car accident", 3)
+    };
 
     private final CityGraph cityMap;
     private final DispatchManager dispatchManager;
@@ -65,6 +72,8 @@ public class DispatchMapUI extends JFrame {
     private final JTextArea historyArea;
     private final List<DispatchRecord> dispatchHistory = new ArrayList<>();
     private final Random random = new Random();
+    private JDialog queueDialog;
+    private JDialog historyDialog;
     private boolean allBusySimulationEnabled;
 
     public DispatchMapUI(DispatchManager dispatchManager, CityGraph cityMap) {
@@ -113,27 +122,16 @@ public class DispatchMapUI extends JFrame {
         panel.add(placeField);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
-        JTextField incidentField = createField("Heart Attack");
-        incidentField.setBorder(BorderFactory.createTitledBorder("Incident name / medical issue"));
-        panel.add(incidentField);
+        JComboBox<IncidentOption> incidentComboBox = createIncidentComboBox();
+        incidentComboBox.setBorder(BorderFactory.createTitledBorder("Incident name / medical issue"));
+        panel.add(incidentComboBox);
         panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
         JButton dispatchBtn = createButton("FIND NEAREST AMBULANCE");
-        dispatchBtn.addActionListener(e -> dispatch(placeField.getText(), incidentField.getText()));
+        dispatchBtn.addActionListener(e -> dispatch(placeField.getText(),
+                (IncidentOption) incidentComboBox.getSelectedItem()));
         panel.add(dispatchBtn);
-        panel.add(Box.createRigidArea(new Dimension(0, 10)));
-
-        JPanel zoomControls = new JPanel(new BorderLayout(8, 0));
-        zoomControls.setOpaque(false);
-        zoomControls.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        JButton zoomOut = createButton("-");
-        JButton zoomIn = createButton("+");
-        zoomOut.addActionListener(e -> mapPanel.zoomBy(0.86));
-        zoomIn.addActionListener(e -> mapPanel.zoomBy(1.16));
-        zoomControls.add(zoomOut, BorderLayout.WEST);
-        zoomControls.add(zoomIn, BorderLayout.EAST);
-        panel.add(zoomControls);
-        panel.add(Box.createRigidArea(new Dimension(0, 10)));
+        panel.add(Box.createRigidArea(new Dimension(0, 16)));
 
         JCheckBox showWeightsBox = new JCheckBox("Show road distances");
         showWeightsBox.setOpaque(false);
@@ -143,7 +141,7 @@ public class DispatchMapUI extends JFrame {
         showWeightsBox.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         showWeightsBox.addActionListener(e -> mapPanel.setShowRoadWeights(showWeightsBox.isSelected()));
         panel.add(showWeightsBox);
-        panel.add(Box.createRigidArea(new Dimension(0, 8)));
+        panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
         JCheckBox allBusySimulationBox = new JCheckBox("Simulate all ambulances busy");
         allBusySimulationBox.setOpaque(false);
@@ -153,7 +151,7 @@ public class DispatchMapUI extends JFrame {
         allBusySimulationBox.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         allBusySimulationBox.addActionListener(e -> setAllBusySimulation(allBusySimulationBox.isSelected()));
         panel.add(allBusySimulationBox);
-        panel.add(Box.createRigidArea(new Dimension(0, 18)));
+        panel.add(Box.createRigidArea(new Dimension(0, 16)));
 
         JLabel nearbyTitle = new JLabel("NEAREST AMBULANCES");
         nearbyTitle.setForeground(new Color(236, 241, 237));
@@ -162,43 +160,29 @@ public class DispatchMapUI extends JFrame {
         panel.add(Box.createRigidArea(new Dimension(0, 6)));
 
         JScrollPane scrollPane = new JScrollPane(ambulanceListArea);
-        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
-        scrollPane.setPreferredSize(new Dimension(300, 140));
+        scrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 112));
+        scrollPane.setPreferredSize(new Dimension(300, 112));
         scrollPane.setBorder(BorderFactory.createLineBorder(new Color(35, 47, 52)));
         panel.add(scrollPane);
-        panel.add(Box.createRigidArea(new Dimension(0, 14)));
+        panel.add(Box.createRigidArea(new Dimension(0, 12)));
 
         panel.add(priorityLabel);
         panel.add(Box.createRigidArea(new Dimension(0, 8)));
         panel.add(statusLabel);
         panel.add(Box.createRigidArea(new Dimension(0, 8)));
         panel.add(etaLabel);
-        panel.add(Box.createRigidArea(new Dimension(0, 16)));
-
-        JLabel queueTitle = new JLabel("WAITING QUEUES");
-        queueTitle.setForeground(new Color(236, 241, 237));
-        queueTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
-        panel.add(queueTitle);
-        panel.add(Box.createRigidArea(new Dimension(0, 6)));
-
-        JScrollPane queueScrollPane = new JScrollPane(queueArea);
-        queueScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
-        queueScrollPane.setPreferredSize(new Dimension(300, 160));
-        queueScrollPane.setBorder(BorderFactory.createLineBorder(new Color(35, 47, 52)));
-        panel.add(queueScrollPane);
         panel.add(Box.createRigidArea(new Dimension(0, 14)));
 
-        JLabel historyTitle = new JLabel("DISPATCH HISTORY");
-        historyTitle.setForeground(new Color(236, 241, 237));
-        historyTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
-        panel.add(historyTitle);
-        panel.add(Box.createRigidArea(new Dimension(0, 6)));
+        JButton queueBtn = createButton("WAITING QUEUES");
+        queueBtn.addActionListener(e -> queueDialog = showContentWindow(queueDialog,
+                "Waiting Queues", queueArea, new Dimension(430, 260)));
+        panel.add(queueBtn);
+        panel.add(Box.createRigidArea(new Dimension(0, 10)));
 
-        JScrollPane historyScrollPane = new JScrollPane(historyArea);
-        historyScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 210));
-        historyScrollPane.setPreferredSize(new Dimension(300, 210));
-        historyScrollPane.setBorder(BorderFactory.createLineBorder(new Color(35, 47, 52)));
-        panel.add(historyScrollPane);
+        JButton historyBtn = createButton("DISPATCH HISTORY");
+        historyBtn.addActionListener(e -> historyDialog = showContentWindow(historyDialog,
+                "Dispatch History", historyArea, new Dimension(430, 320)));
+        panel.add(historyBtn);
         panel.add(Box.createVerticalGlue());
 
         JLabel hint = new JLabel("<html>Mouse wheel zooms.<br>Drag the map to pan.</html>");
@@ -218,6 +202,16 @@ public class DispatchMapUI extends JFrame {
         return field;
     }
 
+    private JComboBox<IncidentOption> createIncidentComboBox() {
+        JComboBox<IncidentOption> comboBox = new JComboBox<>(INCIDENT_OPTIONS);
+        comboBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 46));
+        comboBox.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        comboBox.setBackground(new Color(226, 232, 228));
+        comboBox.setForeground(new Color(18, 24, 28));
+        comboBox.setSelectedIndex(0);
+        return comboBox;
+    }
+
     private JButton createButton(String text) {
         JButton button = new JButton(text);
         button.setFocusPainted(false);
@@ -228,6 +222,27 @@ public class DispatchMapUI extends JFrame {
         button.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
         button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
         return button;
+    }
+
+    private JDialog showContentWindow(JDialog existingDialog, String title, JTextArea contentArea, Dimension size) {
+        if (existingDialog != null && existingDialog.isDisplayable()) {
+            existingDialog.setVisible(true);
+            existingDialog.toFront();
+            return existingDialog;
+        }
+
+        JDialog dialog = new JDialog(this, title, false);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.getContentPane().setBackground(new Color(15, 20, 24));
+
+        JScrollPane scrollPane = new JScrollPane(contentArea);
+        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(35, 47, 52)));
+        dialog.add(scrollPane, BorderLayout.CENTER);
+        dialog.setSize(size);
+        dialog.setMinimumSize(new Dimension(360, 220));
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+        return dialog;
     }
 
     private JTextArea createListArea() {
@@ -277,9 +292,8 @@ public class DispatchMapUI extends JFrame {
         return label;
     }
 
-    private void dispatch(String rawPlace, String rawIncident) {
+    private void dispatch(String rawPlace, IncidentOption incidentOption) {
         String place = rawPlace.trim();
-        String incident = rawIncident.trim();
 
         if (place.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Known Place is required before searching for an ambulance.");
@@ -305,10 +319,9 @@ public class DispatchMapUI extends JFrame {
         mapPanel.setTarget(target);
 
         EmergencyCall call = null;
-        if (!incident.isEmpty()) {
-            int severity = inferSeverity(incident);
-            call = new EmergencyCall(severity, target, incident);
-            priorityLabel.setText(priorityText(severity));
+        if (incidentOption != null) {
+            call = new EmergencyCall(incidentOption.severity, target, incidentOption.name);
+            priorityLabel.setText(priorityText(incidentOption.severity));
         } else {
             priorityLabel.setText("NO INCIDENT: NO QUEUE PRIORITY");
         }
@@ -350,19 +363,6 @@ public class DispatchMapUI extends JFrame {
         statusLabel.setText("SCANNING KNOWN AREA");
         etaLabel.setText("BEST " + choice.ambulance.getAmbulanceId() + " | TOTAL " + emergencyLaneEta + " min");
         mapPanel.scanAndDispatch(choice);
-    }
-
-    private int inferSeverity(String incident) {
-        String text = incident.toLowerCase();
-        if (text.contains("heart") || text.contains("cardiac") || text.contains("stroke")
-                || text.contains("unconscious") || text.contains("not breathing")) {
-            return 1;
-        }
-        if (text.contains("fire") || text.contains("burn") || text.contains("bleeding")
-                || text.contains("fracture") || text.contains("accident")) {
-            return 2;
-        }
-        return 3;
     }
 
     private String priorityText(int severity) {
@@ -703,6 +703,21 @@ public class DispatchMapUI extends JFrame {
             this.arrivedHospital = arrivedHospital;
             this.minutesTaken = minutesTaken;
             this.distanceTakenKm = distanceTakenKm;
+        }
+    }
+
+    private static final class IncidentOption {
+        private final String name;
+        private final int severity;
+
+        private IncidentOption(String name, int severity) {
+            this.name = name;
+            this.severity = severity;
+        }
+
+        @Override
+        public String toString() {
+            return name + " (Severity " + severity + ")";
         }
     }
 
