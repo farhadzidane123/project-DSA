@@ -120,10 +120,8 @@ public class ConsoleUI {
         dispatchManager.finishAmbulanceJob(ambulanceId);
     }
 
-    /**
-     * This method automatically executes the exact scenario required by the grading
-     * rubric.
-     */
+    // This method automatically executes the exact scenario required by the grading
+    // rubric.
     private void runRubricScenario() {
         System.out.println("\n--- RUNNING RUBRIC SCENARIO ---");
 
@@ -150,7 +148,8 @@ public class ConsoleUI {
         EmergencyCall call3 = new EmergencyCall(2, locationC, "House Fire with Burns"); // Medium
 
         // Step 4: Fire all 3 calls in rapid succession
-        // AMB-01 takes Call 1, Call 2 goes to regular queue, Call 3 goes to priority queue
+        // AMB-01 takes Call 1, Call 2 goes to regular queue, Call 3 goes to priority
+        // queue
         dispatchManager.handleIncomingCall(call1);
         dispatchManager.handleIncomingCall(call2); // <-- Regular queue
         dispatchManager.handleIncomingCall(call3); // <-- Priority queue
