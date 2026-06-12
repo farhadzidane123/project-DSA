@@ -412,7 +412,10 @@ public class DispatchMapUI extends JFrame {
         }
 
         switch (result.getStatus()) {
-            case ASSIGNED -> animateAssignedDispatch(result, assignedStatus);
+            case ASSIGNED -> {
+                updateQueueArea();
+                animateAssignedDispatch(result, assignedStatus);
+            }
             case QUEUED -> showQueuedCall(result.getCall());
             case NO_ROUTE -> {
                 JOptionPane.showMessageDialog(this, "No available ambulance can reach this location.");
@@ -420,10 +423,12 @@ public class DispatchMapUI extends JFrame {
                 etaLabel.setText("ETA --");
                 mapPanel.setCandidates(Collections.emptyList());
                 ambulanceListArea.setText("No available ambulance can reach this place.");
+                updateQueueArea();
             }
             case COMPLETED_NO_WAITING_CALL -> {
                 statusLabel.setText("AVAILABLE: " + result.getAmbulanceId());
                 etaLabel.setText("NO WAITING CALLS");
+                updateQueueArea();
             }
             case NO_WAITING_CALL -> {
                 updateQueueArea();
