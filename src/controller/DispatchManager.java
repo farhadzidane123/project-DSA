@@ -78,7 +78,7 @@ public class DispatchManager {
                 amb.setCurrentLocation(completedCall.getLocation());
             }
 
-            // Step 2: Use your custom model method to set availability back to true
+            // Step 2: Use custom model method to set availability back to true
             amb.completeCall();
 
             // Step 3 & 4: Check triage queues and dispatch if there are waiting calls

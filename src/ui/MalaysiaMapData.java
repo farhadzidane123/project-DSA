@@ -37,7 +37,6 @@ public final class MalaysiaMapData {
         Location klSentral = add(cityMap, "KL Sentral", 5.9, 5.2);
         Location bangsarSouth = add(cityMap, "Bangsar South", 5.1, 5.9);
         Location bangsar = add(cityMap, "Bangsar", 5.2, 5.3);
-
         Location hospitalShahAlam = add(cityMap, "Hospital Shah Alam", 2.3, 5.2);
         Location hospitalCyberjaya = add(cityMap, "Hospital Cyberjaya", 5.2, 8.2);
         Location hospitalKajang = add(cityMap, "Hospital Kajang", 7.1, 8.4);
@@ -46,6 +45,7 @@ public final class MalaysiaMapData {
         Location hospitalCheras = add(cityMap, "Hospital Cheras", 7.2, 6.5);
         Location ampangHospital = add(cityMap, "Ampang Hospital", 8.6, 6.1);
 
+        // connecting the nodes with weighted edges
         connect(cityMap, setiaAlam, shahAlam, 6);
         connect(cityMap, shahAlam, puchong, 10);
         connect(cityMap, puchong, cyberjaya, 12);
@@ -63,7 +63,6 @@ public final class MalaysiaMapData {
         connect(cityMap, bangsarSouth, klSentral, 5);
         connect(cityMap, bukitBintang, cheras, 9);
         connect(cityMap, puchong, bangsarSouth, 9);
-
         connect(cityMap, shahAlam, hospitalShahAlam, 3);
         connect(cityMap, cyberjaya, hospitalCyberjaya, 3);
         connect(cityMap, kajang, hospitalKajang, 2);
@@ -72,6 +71,7 @@ public final class MalaysiaMapData {
         connect(cityMap, cheras, hospitalCheras, 2);
         connect(cityMap, ampang, ampangHospital, 2);
 
+        // assigning ambulances to hospitals
         dispatchManager.registerAmbulance(new Ambulance("AMB-01", hospitalShahAlam));
         dispatchManager.registerAmbulance(new Ambulance("AMB-02", hospitalCyberjaya));
         dispatchManager.registerAmbulance(new Ambulance("AMB-03", hospitalKajang));

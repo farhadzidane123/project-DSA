@@ -58,7 +58,7 @@ public class CityGraph {
     /**
      * Core Integration Method used directly by DispatchManager.java.
      * Computes Dijkstra's algorithm and returns the final total integer travel
-     * time[cite: 16, 21].
+     * time
      * * @param start The current Location of the ambulance
      * 
      * @param end The emergency destination Location (retrieved from the
@@ -84,7 +84,7 @@ public class CityGraph {
      * Pathfinding Sequence Method: Returns the full ordered sequence list of
      * Locations
      * making up the shortest route (essential for documenting project test
-     * cases)[cite: 21, 22].
+     * cases)
      */
     public List<Location> findShortestPath(String startName, String endName) {
         Location start = nodes.get(startName);
@@ -135,7 +135,7 @@ public class CityGraph {
 
     /**
      * Internal Dijkstra logic runner calculating minimum weights from a start node
-     * to all nodes[cite: 16].
+     * to all nodes
      */
     private Map<Location, Integer> runDijkstra(Location start) {
         Map<Location, Integer> distances = new HashMap<>();
@@ -171,7 +171,7 @@ public class CityGraph {
 
     /**
      * Backtracks using parent mappings to piece together the visual route
-     * trajectory[cite: 16].
+     * trajectory
      */
     private List<Location> reconstructPath(Map<Location, Location> parentMap, Location end, Location start) {
         if (!parentMap.containsKey(end) && !end.equals(start)) {
@@ -189,7 +189,7 @@ public class CityGraph {
 
     /**
      * Node pair container class used for tracking paths inside Dijkstra's priority
-     * queue[cite: 16].
+     * queue
      */
     private static class NodeDistancePair {
         private final Location location;
