@@ -522,29 +522,32 @@ public class DispatchMapUI extends JFrame {
         ambulanceListArea.setCaretPosition(0);
     }
 
-    private double routeDistanceKm(List<Location> path) {
-        double total = 0;
+    private int routeDistanceKm(List<Location> path) {
+        int total = 0;
         for (int i = 0; i < path.size() - 1; i++) {
             total += roadDistanceKm(path.get(i), path.get(i + 1));
         }
         return total;
     }
 
-    private double roadDistanceKm(Location from, Location to) {
+    private int roadDistanceKm(Location from, Location to) {
         for (Road road : cityMap.getAdjacencyList().getOrDefault(from, Collections.emptyList())) {
             if (road.getTo().equals(to)) {
-                return road.getTravelTime();
+                return road.getDistanceKm();
             }
         }
-        return 1;
+        throw new IllegalStateException("Road missing from " + from.getLocationName() + " to " + to.getLocationName());
     }
 
-    private int estimatedMinutes(double distanceKm) {
-        return Math.max(1, (int) Math.round((distanceKm / AMBULANCE_AVERAGE_SPEED_KMH) * 60 * 0.85));
+    private int estimatedMinutes(int distanceKm) {
+        if (distanceKm == 0) {
+            return 0;
+        }
+        return Math.max(1, (int) Math.round((distanceKm / (double) AMBULANCE_AVERAGE_SPEED_KMH) * 60 * 0.85));
     }
 
-    private String formatKm(double distanceKm) {
-        return String.format("%.1f", distanceKm);
+    private String formatKm(int distanceKm) {
+        return distanceKm + ".0";
     }
 
     private void updateQueueArea() {
@@ -585,7 +588,7 @@ public class DispatchMapUI extends JFrame {
     }
 
     private void addDispatchHistory(DispatchChoice choice) {
-        double totalDistanceKm = choice.distanceKm + choice.hospitalDistanceKm;
+        int totalDistanceKm = choice.distanceKm + choice.hospitalDistanceKm;
         DispatchRecord record = new DispatchRecord(
                 choice.ambulance.getAmbulanceId(),
                 choice.medicalIssue,
@@ -630,18 +633,18 @@ public class DispatchMapUI extends JFrame {
         private final Ambulance ambulance;
         private final Location target;
         private final List<Location> path;
-        private final double distanceKm;
+        private final int distanceKm;
         private final Location hospital;
         private final List<Location> hospitalPath;
-        private final double hospitalDistanceKm;
+        private final int hospitalDistanceKm;
         private final String medicalIssue;
 
-        private DispatchChoice(Ambulance ambulance, Location target, List<Location> path, double distanceKm) {
+        private DispatchChoice(Ambulance ambulance, Location target, List<Location> path, int distanceKm) {
             this(ambulance, target, path, distanceKm, null, Collections.emptyList(), 0, "Unspecified emergency");
         }
 
-        private DispatchChoice(Ambulance ambulance, Location target, List<Location> path, double distanceKm,
-                Location hospital, List<Location> hospitalPath, double hospitalDistanceKm, String medicalIssue) {
+        private DispatchChoice(Ambulance ambulance, Location target, List<Location> path, int distanceKm,
+                Location hospital, List<Location> hospitalPath, int hospitalDistanceKm, String medicalIssue) {
             this.ambulance = ambulance;
             this.target = target;
             this.path = path;
@@ -664,10 +667,10 @@ public class DispatchMapUI extends JFrame {
         private final String lastDestination;
         private final String arrivedHospital;
         private final int minutesTaken;
-        private final double distanceTakenKm;
+        private final int distanceTakenKm;
 
         private DispatchRecord(String ambulanceId, String medicalIssue, String lastDestination,
-                String arrivedHospital, int minutesTaken, double distanceTakenKm) {
+                String arrivedHospital, int minutesTaken, int distanceTakenKm) {
             this.ambulanceId = ambulanceId;
             this.medicalIssue = medicalIssue;
             this.lastDestination = lastDestination;
@@ -695,9 +698,9 @@ public class DispatchMapUI extends JFrame {
     private static final class HospitalRoute {
         private final Location hospital;
         private final List<Location> path;
-        private final double distanceKm;
+        private final int distanceKm;
 
-        private HospitalRoute(Location hospital, List<Location> path, double distanceKm) {
+        private HospitalRoute(Location hospital, List<Location> path, int distanceKm) {
             this.hospital = hospital;
             this.path = path;
             this.distanceKm = distanceKm;
@@ -758,7 +761,7 @@ public class DispatchMapUI extends JFrame {
 
                 Location start = segmentStart();
                 Location end = segmentEnd();
-                int segmentMinutes = Math.max(1, (int) Math.round(roadDistanceKm(start, end)));
+                int segmentMinutes = Math.max(1, estimatedMinutes(roadDistanceKm(start, end)));
                 routeProgress += Math.max(0.008, 0.11 / segmentMinutes);
 
                 if (routeProgress >= 1.0) {
@@ -896,7 +899,7 @@ public class DispatchMapUI extends JFrame {
 
         private Location nearestHospital(Location from) {
             Location bestHospital = null;
-            double bestDistance = Double.MAX_VALUE;
+            int bestDistanceKm = Integer.MAX_VALUE;
             for (Location hospital : cityMap.getNodes().values()) {
                 if (!MalaysiaMapData.isHospital(hospital)) {
                     continue;
@@ -908,9 +911,9 @@ public class DispatchMapUI extends JFrame {
                 if (path.isEmpty()) {
                     continue;
                 }
-                double distance = routeDistanceKm(path);
-                if (distance < bestDistance) {
-                    bestDistance = distance;
+                int distanceKm = routeDistanceKm(path);
+                if (distanceKm < bestDistanceKm) {
+                    bestDistanceKm = distanceKm;
                     bestHospital = hospital;
                 }
             }
@@ -1006,7 +1009,7 @@ public class DispatchMapUI extends JFrame {
 
             Location start = activePath.get(pathIndex);
             Location end = activePath.get(pathIndex + 1);
-            int segmentMinutes = Math.max(1, (int) Math.round(roadDistanceKm(start, end)));
+            int segmentMinutes = Math.max(1, estimatedMinutes(roadDistanceKm(start, end)));
             double step = Math.max(0.012, 0.16 / segmentMinutes);
             segmentProgress += step;
 
@@ -1131,15 +1134,15 @@ public class DispatchMapUI extends JFrame {
                         continue;
                     }
 
-                    int traffic = road.getTravelTime();
-                    if (traffic >= 12) {
+                    int roadDistance = road.getDistanceKm();
+                    if (roadDistance >= 12) {
                         g2.setColor(new Color(214, 82, 72, 145));
-                    } else if (traffic >= 8) {
+                    } else if (roadDistance >= 8) {
                         g2.setColor(new Color(235, 187, 72, 135));
                     } else {
                         g2.setColor(new Color(46, 214, 130, 145));
                     }
-                    g2.setStroke(new BasicStroke(traffic >= 10 ? 2.5f : 1.6f, BasicStroke.CAP_ROUND,
+                    g2.setStroke(new BasicStroke(roadDistance >= 10 ? 2.5f : 1.6f, BasicStroke.CAP_ROUND,
                             BasicStroke.JOIN_ROUND));
                     g2.drawLine((int) worldX(from), (int) worldY(from), (int) worldX(to), (int) worldY(to));
                 }
@@ -1211,7 +1214,7 @@ public class DispatchMapUI extends JFrame {
                     if (!drawnRoads.add(roadKey(from, to))) {
                         continue;
                     }
-                    drawRoadWeightLabel(g2, metrics, from, to, formatKm(road.getTravelTime()) + " km", 15);
+                    drawRoadWeightLabel(g2, metrics, from, to, formatKm(road.getDistanceKm()) + " km", 15);
                 }
             }
         }
@@ -1374,7 +1377,7 @@ public class DispatchMapUI extends JFrame {
         }
 
         private void drawHud(Graphics2D g2) {
-            String text = "KL/Selangor EMS Road Network  |  green: light traffic  amber: moderate  red: heavy";
+            String text = "KL/Selangor EMS Road Network  |  green: short roads  amber: medium  red: long roads";
             g2.setFont(new Font("Consolas", Font.PLAIN, 12));
             FontMetrics fm = g2.getFontMetrics();
             int width = fm.stringWidth(text) + 22;

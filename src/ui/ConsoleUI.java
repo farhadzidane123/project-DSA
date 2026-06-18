@@ -48,8 +48,7 @@ public class ConsoleUI {
 
         while (running) {
             printMenu();
-            int choice = scanner.nextInt();
-            scanner.nextLine();
+            int choice = readInt("Enter choice: ");
 
             switch (choice) {
                 case 1:
@@ -80,20 +79,17 @@ public class ConsoleUI {
         System.out.println("2. Mark Ambulance Job Complete");
         System.out.println("3. Run Project Demo Scenario");
         System.out.println("4. Exit");
-        System.out.print("Enter choice: ");
     }
 
     private void reportEmergency() {
         System.out.println("\n--- REPORT NEW EMERGENCY ---");
 
-        System.out.print("Enter Severity (1 = Critical, 2 = Medium, 3 = Low): ");
-        int severity = scanner.nextInt();
-        scanner.nextLine();
+        int severity = readSeverity();
 
         System.out.print("Enter Location Name: ");
         String locationName = scanner.nextLine();
 
-        Location resolvedLocation = cityMap.getLocation(locationName);
+        Location resolvedLocation = findLocationIgnoreCase(locationName);
         if (resolvedLocation == null) {
             System.out.println("Unknown location. Please use one of the pre-defined KL/Selangor locations.");
             return;
@@ -103,10 +99,18 @@ public class ConsoleUI {
 
         System.out.print("Enter Emergency Description: ");
         String description = scanner.nextLine();
+        if (description.trim().isEmpty()) {
+            System.out.println("Emergency description cannot be empty.");
+            return;
+        }
 
         // Build object and send to dispatch manager
-        EmergencyCall call = new EmergencyCall(severity, resolvedLocation, description);
-        dispatchManager.handleIncomingCall(call);
+        try {
+            EmergencyCall call = new EmergencyCall(severity, resolvedLocation, description);
+            dispatchManager.handleIncomingCall(call);
+        } catch (IllegalArgumentException ex) {
+            System.out.println("Could not create emergency call: " + ex.getMessage());
+        }
     }
 
     private void resolveEmergency() {
@@ -118,6 +122,42 @@ public class ConsoleUI {
 
         // Step 2: Pass to dispatch manager
         dispatchManager.finishAmbulanceJob(ambulanceId);
+    }
+
+    private int readSeverity() {
+        while (true) {
+            int severity = readInt("Enter Severity (1 = Critical, 2 = Medium, 3 = Low): ");
+            if (severity >= 1 && severity <= 3) {
+                return severity;
+            }
+            System.out.println("Invalid severity. Please enter 1, 2, or 3.");
+        }
+    }
+
+    private int readInt(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            if (scanner.hasNextInt()) {
+                int value = scanner.nextInt();
+                scanner.nextLine();
+                return value;
+            }
+            System.out.println("Invalid number. Please enter a numeric choice.");
+            scanner.nextLine();
+        }
+    }
+
+    private Location findLocationIgnoreCase(String locationName) {
+        Location exact = cityMap.getLocation(locationName);
+        if (exact != null) {
+            return exact;
+        }
+        for (Location location : cityMap.getNodes().values()) {
+            if (location.getLocationName().equalsIgnoreCase(locationName.trim())) {
+                return location;
+            }
+        }
+        return null;
     }
 
     // This method automatically executes the exact scenario required by the grading

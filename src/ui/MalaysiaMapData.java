@@ -87,8 +87,8 @@ public final class MalaysiaMapData {
         return location;
     }
 
-    private static void connect(CityGraph cityMap, Location a, Location b, int minutes) {
-        cityMap.addEdge(a.getLocationName(), b.getLocationName(), minutes);
-        cityMap.addEdge(b.getLocationName(), a.getLocationName(), minutes);
+    private static void connect(CityGraph cityMap, Location a, Location b, int distanceKm) {
+        cityMap.addEdge(a.getLocationName(), b.getLocationName(), distanceKm);
+        cityMap.addEdge(b.getLocationName(), a.getLocationName(), distanceKm);
     }
 }
