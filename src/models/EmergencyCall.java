@@ -1,20 +1,32 @@
 package models;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 public class EmergencyCall implements Comparable<EmergencyCall> {
 
-    private static int idCounter = 0; // Static counter to generate unique call IDs
+    private static final AtomicInteger ID_COUNTER = new AtomicInteger(0);
 
-    private int callId; // Unique identifier for each call
-    private int severity; // Severity level (1 = Critical, 2 = Medium, 3 = Low)
-    private Location location; // Location of the emergency
-    private String description; // Description of the emergency (What happened, How many involed, etc.)
-    private long incomingCallTime; // Timestamp when the call was received (in milliseconds)
+    private final int callId; // Unique identifier for each call
+    private final int severity; // Severity level (1 = Critical, 2 = Medium, 3 = Low)
+    private final Location location; // Location of the emergency
+    private final String description; // Description of the emergency
+    private final long incomingCallTime; // Timestamp when the call was received (in milliseconds)
 
     public EmergencyCall(int severity, Location location, String description) {
-        this.callId = ++idCounter;
+        if (severity < 1 || severity > 3) {
+            throw new IllegalArgumentException("Severity must be 1, 2, or 3.");
+        }
+        if (location == null) {
+            throw new IllegalArgumentException("Emergency location is required.");
+        }
+        if (description == null || description.trim().isEmpty()) {
+            throw new IllegalArgumentException("Emergency description is required.");
+        }
+
+        this.callId = ID_COUNTER.incrementAndGet();
         this.severity = severity;
         this.location = location;
-        this.description = description;
+        this.description = description.trim();
         this.incomingCallTime = System.currentTimeMillis();
     }
 
@@ -56,11 +68,12 @@ public class EmergencyCall implements Comparable<EmergencyCall> {
     public int compareTo(EmergencyCall other) {
         // Priority is based on severity first (1 is highest priority in a Min-Heap)
         if (this.severity != other.severity) {
-            return Integer.compare(this.severity, other.severity); // FIXED
-        } else {
-            // If severity is the same, the older call (smaller timestamp) goes first
+            return Integer.compare(this.severity, other.severity);
+        }
+        if (this.incomingCallTime != other.incomingCallTime) {
             return Long.compare(this.incomingCallTime, other.incomingCallTime);
         }
+        return Integer.compare(this.callId, other.callId);
     }
 
 }

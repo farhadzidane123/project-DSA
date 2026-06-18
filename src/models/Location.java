@@ -3,12 +3,15 @@ package models;
 import java.util.Objects;
 
 public class Location {
-    private String locationName;
-    private double xCoordinate;
-    private double yCoordinate;
+    private final String locationName;
+    private final double xCoordinate;
+    private final double yCoordinate;
 
     public Location(String locationName, double xCoordinate, double yCoordinate) {
-        this.locationName = locationName;
+        if (locationName == null || locationName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Location name is required.");
+        }
+        this.locationName = locationName.trim();
         this.xCoordinate = xCoordinate;
         this.yCoordinate = yCoordinate;
     }

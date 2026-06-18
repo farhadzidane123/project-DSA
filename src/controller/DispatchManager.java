@@ -9,18 +9,23 @@ import datastructures.TriageManager;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class DispatchManager {
+    private static final int AMBULANCE_AVERAGE_SPEED_KMH = 80;
 
     // --- CORE VARIABLES ---
     private List<Ambulance> fleet;
+    private Map<String, Ambulance> fleetById;
     private CityGraph cityMap;
     private TriageManager triageSystem;
 
     // --- CONSTRUCTOR ---
     public DispatchManager(CityGraph cityMap, TriageManager triageSystem) {
         this.fleet = new ArrayList<>();
+        this.fleetById = new HashMap<>();
         this.cityMap = cityMap;
         this.triageSystem = triageSystem;
     }
@@ -31,7 +36,15 @@ public class DispatchManager {
      * Adds a newly created ambulance to the fleet list.
      */
     public void registerAmbulance(Ambulance amb) {
+        if (amb == null) {
+            throw new IllegalArgumentException("Ambulance is required.");
+        }
+        String key = amb.getAmbulanceId().toUpperCase();
+        if (fleetById.containsKey(key)) {
+            throw new IllegalArgumentException("Duplicate ambulance ID: " + amb.getAmbulanceId());
+        }
         fleet.add(amb);
+        fleetById.put(key, amb);
         System.out.println(
                 "System: Registered " + amb.getAmbulanceId() + " at " + amb.getCurrentLocation().getLocationName());
     }
@@ -132,8 +145,10 @@ public class DispatchManager {
         int eta = candidate.getEtaMinutes();
         System.out.println("Estimated Time of Arrival: " + eta + " minutes.");
 
-        // Update the Ambulance state using your custom method
-        amb.dispatchTo(call);
+        if (!amb.dispatchTo(call)) {
+            System.out.println("Dispatch failed: " + amb.getAmbulanceId() + " is no longer available.");
+            return DispatchResult.noAvailableAmbulance();
+        }
 
         return DispatchResult.assigned(call, candidate, candidates, pulledFromQueue);
     }
@@ -151,13 +166,14 @@ public class DispatchManager {
             List<Location> path = cityMap.findShortestPath(
                     amb.getCurrentLocation().getLocationName(),
                     target.getLocationName());
-            int eta = cityMap.calculateEta(amb.getCurrentLocation(), target);
-            if (eta != Integer.MAX_VALUE && !path.isEmpty()) {
-                candidates.add(new DispatchCandidate(amb, target, path, routeDistanceKm(path), eta));
+            int distanceKm = routeDistanceKm(path);
+            if (!path.isEmpty()) {
+                candidates.add(new DispatchCandidate(amb, target, path, distanceKm, estimatedMinutes(distanceKm)));
             }
         }
 
-        candidates.sort(Comparator.comparingDouble(DispatchCandidate::getDistanceKm));
+        candidates.sort(Comparator.comparingInt(DispatchCandidate::getDistanceKm)
+                .thenComparing(candidate -> candidate.getAmbulance().getAmbulanceId()));
         return candidates;
     }
 
@@ -170,33 +186,38 @@ public class DispatchManager {
         return false;
     }
 
-    private double routeDistanceKm(List<Location> path) {
-        double total = 0;
+    private int routeDistanceKm(List<Location> path) {
+        int total = 0;
         for (int i = 0; i < path.size() - 1; i++) {
             total += roadDistanceKm(path.get(i), path.get(i + 1));
         }
         return total;
     }
 
-    private double roadDistanceKm(Location from, Location to) {
+    private int roadDistanceKm(Location from, Location to) {
         for (Road road : cityMap.getAdjacencyList().getOrDefault(from, Collections.emptyList())) {
             if (road.getTo().equals(to)) {
-                return road.getTravelTime();
+                return road.getDistanceKm();
             }
         }
-        return 1;
+        throw new IllegalStateException("Road missing from " + from.getLocationName() + " to " + to.getLocationName());
+    }
+
+    private int estimatedMinutes(int distanceKm) {
+        if (distanceKm == 0) {
+            return 0;
+        }
+        return Math.max(1, (int) Math.round((distanceKm / (double) AMBULANCE_AVERAGE_SPEED_KMH) * 60 * 0.85));
     }
 
     /**
      * Finds a specific ambulance in the fleet by its ID.
      */
     private Ambulance getAmbulanceById(String id) {
-        for (Ambulance amb : fleet) {
-            if (amb.getAmbulanceId().equalsIgnoreCase(id)) {
-                return amb;
-            }
+        if (id == null) {
+            return null;
         }
-        return null;
+        return fleetById.get(id.toUpperCase());
     }
 
     // UI Integration Getter
@@ -223,11 +244,11 @@ public class DispatchManager {
         private final Ambulance ambulance;
         private final Location target;
         private final List<Location> path;
-        private final double distanceKm;
+        private final int distanceKm;
         private final int etaMinutes;
 
         private DispatchCandidate(Ambulance ambulance, Location target, List<Location> path,
-                double distanceKm, int etaMinutes) {
+                int distanceKm, int etaMinutes) {
             this.ambulance = ambulance;
             this.target = target;
             this.path = path;
@@ -247,7 +268,7 @@ public class DispatchManager {
             return path;
         }
 
-        public double getDistanceKm() {
+        public int getDistanceKm() {
             return distanceKm;
         }
 

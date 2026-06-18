@@ -11,7 +11,7 @@ During emergencies, dispatchers waste critical time manually locating available 
 # 3. Approach
 1. **Ingest and Categorize**: Incoming calls are instantly tagged with a medical severity level. 
 2. **Sort and Triage**: Critical emergencies enter a dynamic priority tier, sorting themselves so the most life-threatening cases are processed first. 
-3. **Route Optimization**: The system queries the city's network topology via a graph representation, running pathfinding computations to locate the nearest physical resource and calculate an exact estimated time of arrival (ETA). 
+3. **Route Optimization**: The system queries the city's network topology via a graph representation, where edge weights represent road distance in kilometers. Dijkstra's algorithm locates the nearest physical resource by shortest route distance, then ETA is estimated from that distance using an average ambulance speed. 
 4. **Fallback Handling**: When field assets are depleted, non-urgent calls wait in a basic line, ensuring high-priority emergencies can continue to jump the queue dynamically until all life-threatening alerts are resolved. 
 
 # 4. File Structure

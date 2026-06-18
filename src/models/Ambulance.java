@@ -7,7 +7,13 @@ public class Ambulance {
     private EmergencyCall currentCall;
 
     public Ambulance(String ambulanceId, Location currentLocation) {
-        this.ambulanceId = ambulanceId;
+        if (ambulanceId == null || ambulanceId.trim().isEmpty()) {
+            throw new IllegalArgumentException("Ambulance ID is required.");
+        }
+        if (currentLocation == null) {
+            throw new IllegalArgumentException("Ambulance current location is required.");
+        }
+        this.ambulanceId = ambulanceId.trim();
         this.currentLocation = currentLocation;
         this.status = AmbulanceStatus.AVAILABLE;
         this.currentCall = null;
@@ -67,6 +73,9 @@ public class Ambulance {
     }
 
     public void setCurrentLocation(Location currentLocation) {
+        if (currentLocation == null) {
+            throw new IllegalArgumentException("Ambulance current location is required.");
+        }
         this.currentLocation = currentLocation;
     }
 

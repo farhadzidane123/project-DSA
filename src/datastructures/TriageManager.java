@@ -21,6 +21,9 @@ public class TriageManager {
      * Checks severity and routes the call to the appropriate data structure.
      */
     public void addCallToQueue(EmergencyCall call) {
+        if (call == null) {
+            throw new IllegalArgumentException("Emergency call is required.");
+        }
         int severity = call.getSeverity();
 
         // Route Critical (1) and Medium (2) to the Priority Queue

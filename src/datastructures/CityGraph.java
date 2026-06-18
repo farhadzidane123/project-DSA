@@ -8,11 +8,12 @@ import java.util.*;
 /**
  * Handles the Graph data structure (nodes/roads/weights) and pathfinding
  * calculations.
- * Implements Dijkstra's Algorithm to find the shortest path and return travel
- * time ETAs.
+ * Implements Dijkstra's Algorithm to find the shortest path by road distance.
  * Fully integrated with your team's Location, Road, and DispatchManager models.
  */
 public class CityGraph {
+    private static final int AMBULANCE_AVERAGE_SPEED_KMH = 80;
+
     // Maps a unique location name string to its corresponding Location object
     private final Map<String, Location> nodes;
 
@@ -28,24 +29,32 @@ public class CityGraph {
      * Adds a location node to the city graph network.
      */
     public void addLocation(Location location) {
-        if (location != null && !nodes.containsKey(location.getLocationName())) {
-            nodes.put(location.getLocationName(), location);
-            adjacencyList.putIfAbsent(location, new ArrayList<>());
+        if (location == null) {
+            throw new IllegalArgumentException("Location is required.");
         }
+        if (nodes.containsKey(location.getLocationName())) {
+            throw new IllegalArgumentException("Duplicate location: " + location.getLocationName());
+        }
+        nodes.put(location.getLocationName(), location);
+        adjacencyList.putIfAbsent(location, new ArrayList<>());
     }
 
     /**
-     * Connects two registered locations with a directed Road edge and its travel
-     * time.
+     * Connects two registered locations with a directed Road edge and its distance.
      */
-    public void addEdge(String sourceName, String targetName, int travelTime) {
+    public void addEdge(String sourceName, String targetName, int distanceKm) {
+        if (distanceKm <= 0) {
+            throw new IllegalArgumentException("Road distance must be positive.");
+        }
         Location source = nodes.get(sourceName);
         Location target = nodes.get(targetName);
 
-        if (source != null && target != null) {
-            Road road = new Road(source, target, travelTime);
-            adjacencyList.get(source).add(road);
+        if (source == null || target == null) {
+            throw new IllegalArgumentException("Both locations must exist before adding a road: "
+                    + sourceName + " -> " + targetName);
         }
+        Road road = new Road(source, target, distanceKm);
+        adjacencyList.get(source).add(road);
     }
 
     /**
@@ -57,27 +66,41 @@ public class CityGraph {
 
     /**
      * Core Integration Method used directly by DispatchManager.java.
-     * Computes Dijkstra's algorithm and returns the final total integer travel
-     * time
+     * Computes Dijkstra's algorithm and returns the final total distance in km.
      * * @param start The current Location of the ambulance
      * 
      * @param end The emergency destination Location (retrieved from the
      *            EmergencyCall)
-     * @return Total ETA travel time in minutes, or Integer.MAX_VALUE if
+     * @return Total shortest route distance in km, or Integer.MAX_VALUE if
      *         unreachable.
      */
-    public int calculateEta(Location start, Location end) {
+    public int calculateShortestDistanceKm(Location start, Location end) {
         if (start == null || end == null) {
-            return 0;
+            return Integer.MAX_VALUE;
         }
 
-        // If the ambulance is already at the call location, ETA is zero
+        // If the ambulance is already at the call location, distance is zero.
         if (start.equals(end)) {
             return 0;
         }
 
         Map<Location, Integer> distances = runDijkstra(start);
         return distances.getOrDefault(end, Integer.MAX_VALUE);
+    }
+
+    /**
+     * Backward-compatible ETA helper. Graph weights are kilometers; ETA is derived
+     * from the shortest route distance using the system's average ambulance speed.
+     */
+    public int calculateEta(Location start, Location end) {
+        int distanceKm = calculateShortestDistanceKm(start, end);
+        if (distanceKm == Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+        if (distanceKm == 0) {
+            return 0;
+        }
+        return Math.max(1, (int) Math.round((distanceKm / (double) AMBULANCE_AVERAGE_SPEED_KMH) * 60 * 0.85));
     }
 
     /**
@@ -119,7 +142,7 @@ public class CityGraph {
 
             for (Road road : adjacencyList.getOrDefault(current, Collections.emptyList())) {
                 Location neighbor = road.getTo();
-                int weight = road.getTravelTime();
+                int weight = road.getDistanceKm();
                 int newDist = distances.get(current) + weight;
 
                 if (newDist < distances.get(neighbor)) {
@@ -134,7 +157,7 @@ public class CityGraph {
     }
 
     /**
-     * Internal Dijkstra logic runner calculating minimum weights from a start node
+     * Internal Dijkstra logic runner calculating minimum distance from a start node
      * to all nodes
      */
     private Map<Location, Integer> runDijkstra(Location start) {
@@ -157,7 +180,7 @@ public class CityGraph {
 
             for (Road road : adjacencyList.getOrDefault(current, Collections.emptyList())) {
                 Location neighbor = road.getTo();
-                int weight = road.getTravelTime();
+                int weight = road.getDistanceKm();
                 int newDist = distances.get(current) + weight;
 
                 if (newDist < distances.get(neighbor)) {
